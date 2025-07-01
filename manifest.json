@@ -1,0 +1,10 @@
+{
+  "name": "Geo App",
+  "short_name" :"Geo",
+  "icons": [],
+  "theme_color": "#ff6400",
+  "background_color": "#9E9E9E",
+  "start_url": "index.html",
+  "display": "standalone",
+  "orientation": "portrait"
+}
