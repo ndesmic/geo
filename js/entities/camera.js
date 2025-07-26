@@ -1,5 +1,5 @@
 import { getOrthoMatrix, getProjectionMatrix, getLookAtMatrix, UP, subtractVector } from "../utilities/vector.js";
-import { cartesianToLatLng, latLngToCartesian as polarToCartesian, clamp } from "../utilities/math-helpers.js";
+import { cartesianToLatLng, latLngToCartesian, clamp } from "../utilities/math-helpers.js";
 
 export class Camera {
 	#position = new Float32Array([0,0,-1]);
@@ -71,17 +71,12 @@ export class Camera {
 		this.#target[2] += z;
 	}
 
-	orbitBy({ lat = 0, long = 0, radius = 0 }){
-		const [r, currentLat, currentLng] = this.getOrbit(); 
-		const newLat = clamp(currentLat + lat, -Math.PI/2, Math.PI/2);
+	orbitBy({ radius = 0, lat = 0, long = 0 }){
+		const [currentLat, currentLng, r] = this.getOrbit(); 
+		const newLat = currentLat + lat;
+		const newLong = currentLng - long;
 		const newRadius = Math.max(0.1, r + radius);
-		this.#position = polarToCartesian([newRadius, newLat, currentLng - long]);
-	}
-
-	zoomBy(value) {
-		const [r, currentLat, currentLng] = this.getOrbit();
-		const newRadius = Math.max(0.1, r / value);
-		this.#position = polarToCartesian([newRadius, currentLat, currentLng]);
+		this.#position = latLngToCartesian([newLat, newLong, newRadius]);
 	}
 
 	lookAt(x, y, z){
@@ -111,6 +106,10 @@ export class Camera {
 		return this.#position;
 	}
 
+	/**
+	 * 
+	 * @param {Float32Array} position 
+	 */
 	setPosition(position){
 		this.#position = position;
 	}

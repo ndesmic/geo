@@ -1,32 +1,40 @@
 export const TWO_PI = Math.PI * 2
 export const QUARTER_TURN = Math.PI / 2;
+export const DEGREES_PER_RADIAN = 180 / Math.PI;
 
 export function normalizeAngle(angle) {
-	if (angle < 0) {
-		return TWO_PI - (Math.abs(angle) % TWO_PI);
-	}
-	return angle % TWO_PI;
+	return (angle % TWO_PI) + TWO_PI;
 }
 
-export function radToDegrees(rad){
+export function radiansToDegrees(rad){
 	return rad * 180/Math.PI;
 }
+
+/**
+ * 
+ * @param {[number, number, number]} coords 
+ * @returns 
+ */
 
 export function cartesianToLatLng([x, y, z]) {
 	const radius = Math.sqrt(x ** 2 + y ** 2 + z ** 2);
 	return [
-		radius,
-		(Math.PI / 2) - Math.acos(y / radius),
-		normalizeAngle(Math.atan2(x, -z)),
+		Math.asin(y / radius),
+		Math.atan2(z, x),
+		radius
 	];
 }
 
-export function latLngToCartesian([radius, lat, lng]){
-	lng = -lng + Math.PI / 2;
+/**
+ * 
+ * @param {[number, number, number]} latLng
+ * @returns 
+ */
+export function latLngToCartesian([latitude, longitude, radius = 1]){
 	return [
-		radius * Math.cos(lat) * Math.cos(lng),
-		radius * Math.sin(lat),
-		radius * -Math.cos(lat) * Math.sin(lng),
+		radius * Math.cos(latitude) * Math.cos(longitude),
+		radius * Math.sin(latitude),
+		radius * Math.cos(latitude) * Math.sin(longitude),
 	];
 }
 

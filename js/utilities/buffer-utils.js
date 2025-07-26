@@ -81,6 +81,22 @@ const gpuTypeAlignSize = {
 	mat4x4f32: [16,64],
 	mat4x4f16: [8,32]
 }
+
+
+/**
+ * 
+ * @param {number} size 
+ * @param {number} smallestUnitSize 
+ * @returns
+ */
+export function getPaddedSize(size, smallestUnitSize) {
+	const remainder = size % smallestUnitSize;
+	if (remainder === 0) {
+		return size;
+	}
+	return size + smallestUnitSize - remainder;
+}
+
 /**
  * @typedef {keyof gpuTypeAlignSize} GpuType
  * @param {GpuType[]} typesToPack 
@@ -102,18 +118,4 @@ export function getAlignments(typesToPack){
 		offsets,
 		totalSize: getPaddedSize(offset, maxAlign)
 	};
-}
-
-/**
- * 
- * @param {number} size 
- * @param {number} smallestUnitSize 
- * @returns
- */
-export function getPaddedSize(size, smallestUnitSize){
-	const remainder = size % smallestUnitSize;
-	if(remainder === 0){
-		return size;
-	}
-	return size + smallestUnitSize - remainder;
 }
