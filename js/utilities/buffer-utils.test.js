@@ -26,7 +26,7 @@ describe("buffer-utils", () => {
 				]),
 				length: 6
 			}
-			const buffer = packMesh(meshAttrs, { positions: 2, uvs: 2 });
+			const buffer = packMesh(meshAttrs, { positionSize: 2, uvSize: 2 });
 
 			expect(buffer).toEqual(new Float32Array([
 				-1.0, -1.0, 0.0, 1.0,
@@ -60,7 +60,7 @@ describe("buffer-utils", () => {
 				]),
 				length: 6
 			}
-			const buffer = packMesh(meshAttrs, { positions: 2 });
+			const buffer = packMesh(meshAttrs, { positionSize: 2 });
 
 			expect(buffer).toEqual(new Float32Array([
 				-1.0, -1.0, 

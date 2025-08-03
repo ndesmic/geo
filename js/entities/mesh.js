@@ -22,6 +22,7 @@ export class Mesh {
 		this.tangents = mesh.tangents;
 		this.material = mesh.material;
 		this.length = mesh.length;
+		this.positionsSize = mesh.positionsSize ?? 3;
 	}
 
 	set positions(val) {
@@ -106,27 +107,23 @@ export class Mesh {
 		const modelMatrix = this.#transforms.reduce((mm, tm) => multiplyMatrix(tm, mm), getIdentityMatrix());
 		return getTranspose(modelMatrix, [4,4]);
 	}
-	normalizePositions(){
+	normalizePositions(scale){
 		let max = -Infinity;
 
-		for(let i = 0; i < this.#positions.length; i += 3){
-			const x = this.#positions[i];
-			const y = this.#positions[i + 1];
-			const z = this.#positions[i + 2];
-
-			if(x > max){
-				max = x;
-			}
-			if (y > max) {
-				max = y;
-			}
-			if (z > max) {
-				max = z;
+		for(let i = 0; i < this.#positions.length; i += this.positionsSize){
+			for(let j = 0; j < this.positionsSize; j++){
+				const coord = this.#positions[i * this.positionsSize + j];
+				if(coord > max){
+					max = coord
+				}
 			}
 		}
 
 		for(let i = 0; i < this.#positions.length; i++){
 			this.#positions[i] /= max;
+			if(scale){
+				this.#positions[i] *= scale;
+			}
 		}
 
 		return this;

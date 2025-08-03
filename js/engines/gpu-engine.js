@@ -1,21 +1,25 @@
 import { Camera } from "../entities/camera.js";
 import { Mesh } from "../entities/mesh.js";
-import { screenQuad, quad, uvSphere } from "../utilities/mesh-generator.js";
-import { packMesh, getAlignments } from "../utilities/buffer-utils.js";
+import { screenTri, uvSphere } from "../utilities/mesh-generator.js";
+import { getAlignments } from "../utilities/buffer-utils.js";
 import { getTranspose, getInverse, trimMatrix, multiplyMatrix } from "../utilities/vector.js";
-import { loadImage } from "../utilities/image-utils.js";
+import { uploadMesh, uploadShader, uploadTexture, uploadObj } from "../utilities/wgpu-utils.js";
 
 export class GpuEngine {
 	#canvas;
 	#context;
 	#adapter;
 	#device;
+	#raf;
+	#isRunning = false;
 	#meshes = new Map();
 	#pipelines = new Map();
 	#cameras = new Map();
 	#textures = new Map();
 	#samplers = new Map();
 	#pipelineMesh = new Map();
+
+	#extractDepthBuffer;
 
 	constructor(options) {
 		this.#canvas = options.canvas;
@@ -30,10 +34,10 @@ export class GpuEngine {
 		});
 
 		this.initializeCameras();
-		this.initializeMeshes();
+		await this.initializeMeshes();
 		await this.initializeTextures();
 		this.initializeSamplers();
-		this.initializePipelines();
+		await this.initializePipelines();
 		this.initializePipelineMesh();
 	}
 	initializeCameras(){
@@ -47,128 +51,47 @@ export class GpuEngine {
 			isPerspective: true
 		}))
 	}
-	initializeMeshes(){
+	async initializeMeshes(){
+		// {
+		// 	const mesh = new Mesh(uvSphere(8))
+		// 	const { vertexBuffer, indexBuffer } = uploadMesh(this.#device, mesh, { positionLength: 3, uvLength: 2, label: "earth-mesh" });
+		// 	this.#meshes.set("earth", { vertexBuffer, indexBuffer, mesh });
+		// }
 		{
-			const mesh = new Mesh(uvSphere(8));
-			const vertices = packMesh(mesh, { positions: 3, uvs: 2 });
-
-			const vertexBuffer = this.#device.createBuffer({
-				label: "earth-mesh",
-				size: vertices.byteLength,
-				usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+			const { mesh, vertexBuffer, indexBuffer} = await uploadObj(this.#device, "./objs/teapot-low.obj", { 
+				reverseWinding: true, 
+				normalizePositions: 1
 			});
-			this.#device.queue.writeBuffer(vertexBuffer, 0, vertices);
-
-			const indexBuffer = this.#device.createBuffer({
-				size: mesh.indices.byteLength,
-				usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-			});
-			this.#device.queue.writeBuffer(indexBuffer, 0, mesh.indices);
-
-			this.#meshes.set("earth", {
-				vertexBuffer,
-				indexBuffer,
-				mesh
-			});
+			this.#meshes.set("teapot", { vertexBuffer, indexBuffer, mesh });
 		}
 		{
-			const mesh = new Mesh(screenQuad());
-			const vertices = packMesh(mesh, { positions: 2 });
-
-			const vertexBuffer = this.#device.createBuffer({
-				label: "background-mesh",
-				size: vertices.byteLength,
-				usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
-			});
-			this.#device.queue.writeBuffer(vertexBuffer, 0, vertices);
-
-			const indexBuffer = this.#device.createBuffer({
-				size: mesh.indices.byteLength,
-				usage: GPUBufferUsage.INDEX | GPUBufferUsage.COPY_DST,
-			});
-			this.#device.queue.writeBuffer(indexBuffer, 0, mesh.indices);
-
-			this.#meshes.set("background", {
-				vertexBuffer,
-				indexBuffer,
-				mesh
-			});
+			const mesh = new Mesh(screenTri());
+			const { vertexBuffer, indexBuffer } = uploadMesh(this.#device, mesh, { positionSize: 2, label: "background-mesh" });
+			this.#meshes.set("background", { vertexBuffer, indexBuffer, mesh });
 		}
 	}
 	async initializeTextures(){
-		const image = await loadImage("./img/earth.png");
+		this.#textures.set("earth", await uploadTexture(this.#device, "./img/earth.png"));
 
-		const textureSize = {
-			width: image.width,
-			height: image.height,
-			depthOrArrayLayers: 1
-		};
-		const texture = this.#device.createTexture({
-			size: textureSize,
-			dimension: '2d',
-			format: `rgba8unorm`,
-			usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
-		});
+		this.#textures.set("space", await uploadTexture(this.#device, [
+			"./img/space_right.png",
+			"./img/space_left.png",
+			"./img/space_top.png",
+			"./img/space_bottom.png",
+			"./img/space_front.png",
+			"./img/space_back.png"
+		]));
 
-		this.#device.queue.copyExternalImageToTexture(
-			{
-				source: image,
-				flipY: true
-			},
-			{
-				texture: texture
-			},
-			{
-				width: image.width,
-				height: image.height,
+		this.#textures.set("depth", this.#device.createTexture({
+			label: "depth-texture",
+			size: {
+				width: this.#canvas.width,
+				height: this.#canvas.height,
 				depthOrArrayLayers: 1
-			}
-		);
-
-		this.#textures.set("earth", texture);
-
-		//cubemap -> [+X, -X, +Y, -Y, +Z, -Z]
-		const cubeSideImages = await Promise.all([
-			loadImage("./img/space_front.png"),
-			loadImage("./img/space_right.png"),
-			loadImage("./img/space_left.png"),
-			loadImage("./img/space_back.png"),
-			loadImage("./img/space_top.png"),
-			loadImage("./img/space_bottom.png"),
-		]);
-
-		const cubemapSize = {
-			width: cubeSideImages[0].width,
-			height: cubeSideImages[0].height,
-			depthOrArrayLayers: 6
-		};
-
-		const cubemap = this.#device.createTexture({
-			size: cubemapSize,
-			dimension: "2d",
-			format: `rgba8unorm`,
-			usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
-		});
-
-		cubeSideImages.forEach((img, layer) => {
-			this.#device.queue.copyExternalImageToTexture(
-				{
-					source: img,
-					flipY: true
-				},
-				{
-					texture: cubemap,
-					origin: [0, 0, layer]
-				},
-				{
-					width: img.width,
-					height: img.height,
-					depthOrArrayLayers: 1
-				}
-			);
-		});
-
-		this.#textures.set("space", cubemap);
+			},
+			format: "depth32float",
+			usage: GPUTextureUsage.RENDER_ATTACHMENT
+		}));
 	}
 	initializeSamplers(){
 		const sampler = this.#device.createSampler({
@@ -179,7 +102,7 @@ export class GpuEngine {
 		});
 		this.#samplers.set("main", sampler);
 	}
-	initializePipelines(){
+	async initializePipelines(){
 		{
 			const vertexBufferDescriptor = [{
 				attributes: [
@@ -192,90 +115,18 @@ export class GpuEngine {
 						shaderLocation: 1,
 						offset: 12,
 						format: "float32x2"
+					},
+					{
+						shaderLocation: 2,
+						offset: 20,
+						format: "float32x3"
 					}
 				],
-				arrayStride: 20,
+				arrayStride: 32,
 				stepMode: "vertex"
 			}];
 
-			const shaderModule = this.#device.createShaderModule({
-				code: `
-					struct VertexOut {
-						@builtin(position) position : vec4<f32>,
-						@location(0) uv : vec2<f32>
-					};
-					struct Uniforms {
-						view_matrix: mat4x4<f32>,
-						projection_matrix: mat4x4<f32>,
-						model_matrix: mat4x4<f32>,
-						normal_matrix: mat3x3<f32>,
-						camera_position: vec3<f32>
-					}
-					
-
-					@group(0) @binding(0) var<uniform> uniforms : Uniforms;
-					@group(1) @binding(0) var main_sampler: sampler;
-					@group(1) @binding(1) var earth_texture: texture_2d<f32>;
-
-					@vertex
-					fn vertex_main(@location(0) position: vec3<f32>, @location(1) uv: vec2<f32>) -> VertexOut
-					{
-						var output : VertexOut;
-						output.position =  uniforms.projection_matrix * uniforms.view_matrix * uniforms.model_matrix * vec4<f32>(position, 1.0);
-						output.uv = uv;
-						return output;
-					}
-
-					@fragment
-					fn fragment_main(fragData: VertexOut) -> @location(0) vec4<f32>
-					{
-						return textureSample(earth_texture, main_sampler, fragData.uv);
-					}
-				`
-			});
-
-			//manually setting bind groups
-			const uniformBindGroupLayout = this.#device.createBindGroupLayout({
-				label: "main-uniform-bind-group-layout",
-				entries: [
-					{
-						binding: 0,
-						visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-						buffer: {
-							type: "uniform"
-						}
-					}
-				]
-			});
-			const textureBindGroupLayout = this.#device.createBindGroupLayout({
-				label: "main-texture-bind-group-layout",
-				entries: [
-					{
-						binding: 0,
-						visibility: GPUShaderStage.FRAGMENT,
-						sampler: {
-							type: "filtering"
-						}
-					},
-					{
-						binding: 1,
-						visibility: GPUShaderStage.FRAGMENT,
-						texture: {
-							sampleType: "float",
-							viewDimension: "2d",
-							multisampled: false
-						}
-					}
-				]
-			});
-
-			const pipelineLayout = this.#device.createPipelineLayout({
-				label: "main-pipeline-layout",
-				bindGroupLayouts: [
-					uniformBindGroupLayout,
-					textureBindGroupLayout
-				]
-			});
+			const shaderModule = await uploadShader(this.#device, "./shaders/textured-earth.wgsl");
 
 			const pipelineDescriptor = {
 				label: "main-pipeline",
@@ -296,21 +147,24 @@ export class GpuEngine {
 					frontFace: "ccw",
 					cullMode: "back"
 				},
-				layout: pipelineLayout
+				depthStencil: {
+					depthWriteEnabled: true,
+					depthCompare: "less-equal",
+					format: "depth32float"
+				},
+				layout: "auto"
 			};
+			const pipeline = this.#device.createRenderPipeline(pipelineDescriptor);
 
 			this.#pipelines.set("main", {
-				pipeline: this.#device.createRenderPipeline(pipelineDescriptor),
-				pipelineLayout,
+				pipeline,
 				bindGroupLayouts: new Map([
-					["uniforms", uniformBindGroupLayout],
-					["textures", textureBindGroupLayout]
+					["uniforms", pipeline.getBindGroupLayout(0)],
+					["textures", pipeline.getBindGroupLayout(1)]
 				]),
 				bindMethod: this.setMainBindGroups.bind(this)
 			});
 		}
-
-
 		{
 			const vertexBufferDescriptor = [{
 				attributes: [
@@ -324,77 +178,7 @@ export class GpuEngine {
 				stepMode: "vertex"
 			}];
 
-			const shaderModule = this.#device.createShaderModule({
-				code: `
-					struct VertexOut {
-						@builtin(position) frag_position : vec4<f32>,
-						@location(0) clip_position: vec4<f32>
-					};
-
-					@group(0) @binding(0) var<uniform> inverse_view_matrix: mat4x4<f32>;
-					@group(1) @binding(0) var main_sampler: sampler;
-					@group(1) @binding(1) var space_texture: texture_cube<f32>;
-
-					@vertex
-					fn vertex_main(@location(0) position: vec2<f32>) -> VertexOut
-					{
-						var output : VertexOut;
-						output.frag_position =  vec4(position, 0.0, 1.0);
-						output.clip_position = vec4(position, 0.0, 1.0);
-						return output;
-					}
-
-					@fragment
-					fn fragment_main(fragData: VertexOut) -> @location(0) vec4<f32>
-					{
-						var pos = inverse_view_matrix * fragData.clip_position;
-						return textureSample(space_texture, main_sampler, pos.xyz);
-					}
-				`
-			});
-
-			//manually setting bind groups
-			const uniformBindGroupLayout = this.#device.createBindGroupLayout({
-				label: "background-bind-group-layout",
-				entries: [
-					{
-						binding: 0,
-						visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-						buffer: {
-							type: "uniform"
-						}
-					}
-				]
-			});
-			const textureBindGroupLayout = this.#device.createBindGroupLayout({
-				label: "background-texture-bind-group-layout",
-				entries: [
-					{
-						binding: 0,
-						visibility: GPUShaderStage.FRAGMENT,
-						sampler: {
-							type: "filtering"
-						}
-					},
-					{
-						binding: 1,
-						visibility: GPUShaderStage.FRAGMENT,
-						texture: {
-							sampleType: "float",
-							viewDimension: "cube",
-							multisampled: false
-						}
-					}
-				]
-			});
-
-			const pipelineLayout = this.#device.createPipelineLayout({
-				label: "background-pipeline-layout",
-				bindGroupLayouts: [
-					uniformBindGroupLayout,
-					textureBindGroupLayout
-				]
-			});
+			const shaderModule = await uploadShader(this.#device, "./shaders/space-background.wgsl");
 
 			const pipelineDescriptor = {
 				label: "background-pipeline",
@@ -411,33 +195,42 @@ export class GpuEngine {
 					]
 				},
 				primitive: {
-					topology: "triangle-list",
-					frontFace: "ccw",
-					cullMode: "back"
+					topology: "triangle-list"
 				},
-				layout: pipelineLayout
+				depthStencil: {
+					depthWriteEnabled: true,
+					depthCompare: "less-equal",
+					format: "depth32float"
+				},
+				layout: "auto"
 			};
 
+			const pipeline = this.#device.createRenderPipeline(pipelineDescriptor);
+
 			this.#pipelines.set("background", {
-				pipeline: this.#device.createRenderPipeline(pipelineDescriptor),
-				pipelineLayout,
+				pipeline: pipeline,
 				bindGroupLayouts: new Map([
-					["uniforms", uniformBindGroupLayout],
-					["textures", textureBindGroupLayout]
+					["uniforms", pipeline.getBindGroupLayout(0)],
+					["textures", pipeline.getBindGroupLayout(1)]
 				]),
 				bindMethod: this.setBackgroundBindGroups.bind(this)
 			});
 		}
 	}
 	initializePipelineMesh(){
+		this.#pipelineMesh.set("main", ["teapot"]);
 		this.#pipelineMesh.set("background", ["background"]);
-		this.#pipelineMesh.set("main", ["earth"]);
 	}
 	start() {
+		this.#isRunning = true;
 		this.renderLoop();
 	}
+	stop(){
+		cancelAnimationFrame(this.#raf);
+		this.#isRunning = false;
+	}
 	renderLoop() {
-		requestAnimationFrame((timestamp) => {
+		this.#raf = requestAnimationFrame((timestamp) => {
 			this.render(timestamp);
 			this.renderLoop();
 		});
@@ -552,20 +345,30 @@ export class GpuEngine {
 			label: "main-command-encoder"
 		});
 
-		const passEncoder = commandEncoder.beginRenderPass({
-			label: "main-render-pass",
-			colorAttachments: [
-				{
-					storeOp: "store",
-					loadOp: "load",
-					view: this.#context.getCurrentTexture().createView()
-				}
-			]
-		});
-
 		const camera = this.#cameras.get("main");
+		let isFirstPass = true;
+
+		const depthView = this.#textures.get("depth").createView();
 
 		for(const [pipelineName, meshNames] of this.#pipelineMesh.entries()){
+			const passEncoder = commandEncoder.beginRenderPass({
+				label: `${pipelineName}-render-pass`,
+				colorAttachments: [
+					{
+						storeOp: "store",
+						loadOp: isFirstPass ? "clear" : "load",
+						clearValue: { r: 0.1, g: 0.3, b: 0.8, a: 1.0 },
+						view: this.#context.getCurrentTexture().createView()
+					}
+				],
+				depthStencilAttachment: {
+					view: depthView,
+					depthClearValue: 1.0,
+					depthStoreOp: "store",
+					depthLoadOp: isFirstPass ? "clear" : "load"
+				}
+			});
+
 			const pipelineContainer = this.#pipelines.get(pipelineName);
 
 			passEncoder.setPipeline(pipelineContainer.pipeline);
@@ -578,14 +381,18 @@ export class GpuEngine {
 				passEncoder.setIndexBuffer(meshContainer.indexBuffer, "uint16");
 				passEncoder.drawIndexed(meshContainer.mesh.indices.length);
 			}
-		}
 
-		passEncoder.end();
+			passEncoder.end();
+			isFirstPass = false;
+		}
 
 		this.#device.queue.submit([commandEncoder.finish()]);
 	}
 
 	get cameras(){
 		return this.#cameras;
+	}
+	get isRunning(){
+		return this.#isRunning;
 	}
 }

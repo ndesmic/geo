@@ -18,22 +18,22 @@ function packAttribute(buffer, attributes, index, attributeOffset, attributeLeng
 /**
  * 
  * @param {{ positions: Float32Array, colors?: Float32Array, uvs?: Float32Array, normals?: Float32Array, indices?: Float32Array, length: number }} meshAttributes 
- * @param {{ positions: number, colors: number, indicies: boolean, uvs: number, normals: number }} options number of 32-bit elements per vertex
+ * @param {{ positionSize?: number, colorSize?: number, indices: boolean, uvSize?: number, normalSize?: number }} options number of 32-bit elements per vertex
  */
 export function packMesh(meshAttributes, options){
-	const stride = (options.positions ?? 0) + (options.colors ?? 0) + (options.uvs ?? 0) + (options.normals ?? 0); //stride in terms of indices (not bytes, assume F32s)
+	const stride = (options.positionSize ?? 0) + (options.colorSize ?? 0) + (options.uvSize ?? 0) + (options.normalSize ?? 0); //stride in terms of indices (not bytes, assume F32s)
 	const buffer = new Float32Array(stride * meshAttributes.length);
 
 	const positionOffset = 0;
-	const colorOffset = options.positions ?? 0;
-	const uvOffset = colorOffset + (options.colors ?? 0);
-	const normalOffset = uvOffset + (options.uvs ?? 0);
+	const colorOffset = options.positionSize ?? 0;
+	const uvOffset = colorOffset + (options.colorSize ?? 0);
+	const normalOffset = uvOffset + (options.uvSize ?? 0);
 
 	for(let i = 0; i < meshAttributes.length; i++){
-		packAttribute(buffer, meshAttributes.positions, i, positionOffset, options.positions, stride);
-		packAttribute(buffer, meshAttributes.colors, i, colorOffset, options.colors, stride);
-		packAttribute(buffer, meshAttributes.uvs, i, uvOffset, options.uvs, stride);
-		packAttribute(buffer, meshAttributes.normals, i, normalOffset, options.normals, stride);
+		packAttribute(buffer, meshAttributes.positions, i, positionOffset, options.positionSize, stride);
+		packAttribute(buffer, meshAttributes.colors, i, colorOffset, options.colorSize, stride);
+		packAttribute(buffer, meshAttributes.uvs, i, uvOffset, options.uvSize, stride);
+		packAttribute(buffer, meshAttributes.normals, i, normalOffset, options.normalSize, stride);
 	}
 
 	return buffer;
@@ -95,6 +95,14 @@ export function getPaddedSize(size, smallestUnitSize) {
 		return size;
 	}
 	return size + smallestUnitSize - remainder;
+}
+
+export function getPaddedBuffer(buffer, smallestUnitSize){
+	const newSize = getPaddedSize(buffer.byteLength, smallestUnitSize);
+	if(newSize === buffer.byteLength) return buffer;
+	const newBuffer = new Float32Array(newSize);
+	newBuffer.set(buffer, 0);
+	return newBuffer;
 }
 
 /**

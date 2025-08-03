@@ -100,6 +100,7 @@ export function uvSphere(density, { uvOffset } = {}){
 
 	return {
 		positions,
+		positionStride: 3,
 		uvs,
 		normals,
 		indices,
@@ -119,6 +120,7 @@ export function quad(){
 			1.0, 1.0, 0.0,
 			-1.0, 1.0, 0.0,
 		]),
+		positionStride: 3,
 		uvs: new Float32Array([
 			0.0, 1.0,
 			1.0, 1.0,
@@ -150,5 +152,21 @@ export function screenQuad() {
 		]),
 		indices: [0, 1, 2, 0, 2, 3],
 		length: 4
+	}
+}
+export function screenTri(){
+	return {
+		positions: new Float32Array([
+			-1.0, -1.0,
+			3.0, -1.0,
+			-1.0, 3.0
+		]),
+		uvs: new Float32Array([
+			0.0, -1.0,
+			3.0, 1.0,
+			0.0, 3.0,
+		]),
+		indices: [0,1,2],
+		length: 3
 	}
 }
