@@ -1,8 +1,70 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { getRow, getColumn, getTranspose, multiplyMatrix, trimMatrix, getDeterminant, scaleMatrix, getDeterminantSubmatrix, getCofactorMatrix, getAdjugate, getInverse } from "./vector.js";
+import { getRow, getColumn, getTranspose, multiplyMatrix, trimMatrix, getDeterminant, scaleMatrix, getDeterminantSubmatrix, getCofactorMatrix, getAdjugate, getInverse, multiplyMatrixVector, addVector, subtractVector, scaleVector, divideVector } from "./vector.js";
 
 describe("vector", () => {
+	describe("addVector", () => {
+		it("should add two vectors", () => {
+			const result = addVector([1,2,3], [2,2,1]);
+			expect(result).toEqual([3,4,4]);
+		});
+	});
+	describe("subtractVector", () => {
+		it("should subtract two vectors", () => {
+			const result = subtractVector([1, 2, 3], [2, 2, 1]);
+			expect(result).toEqual([-1, 0, 2]);
+		});
+	});
+	describe("scaleVector", () => {
+		it("should scale a vector", () => {
+			const result = scaleVector([1, 2, 3], 3);
+			expect(result).toEqual([3, 6, 9]);
+		});
+	});
+	describe("divideVector", () => {
+		it("should divide a vector", () => {
+			const result = divideVector([1, 2, 3], 3);
+			expect(result).toEqual([1/3, 2/3, 1]);
+		});
+	});
+	describe("multiplyMatrixVector", () => {
+		it("should multiply 2x2 matrix with vec2", () => {
+			const vec = new Float32Array([5,6]);
+			const matrix = new Float32Array([
+				1,0,
+				0,1
+			]);
+			const result = multiplyMatrixVector(vec, matrix, 2);
+			expect(result).toEqual(new Float32Array([
+				5,6
+			]));
+		});
+		it("should multiply 3x3 matrix with vec3", () => {
+			const vec = new Float32Array([1,2,3]);
+			const matrix = new Float32Array([
+				1, 2, 3,
+				4, 5, 6,
+				7, 8, 9,
+			]);
+			const result = multiplyMatrixVector(vec, matrix, 3);
+			expect(result).toEqual(new Float32Array([
+				14, 32, 50
+			]));
+		});
+		it("should multiply 4x4 matrix with vec4", () => {
+			const vec = new Float32Array([9, 8, 7, 6]);
+			const matrix = new Float32Array([
+				1, 2, 3, 4,
+				5, 6, 7, 8,
+				9, 10, 11, 12,
+				13, 14, 15, 16
+			]);
+			const result = multiplyMatrixVector(vec, matrix, 4);
+			expect(result).toEqual(new Float32Array([
+				70, 190, 310, 430
+			]));
+		});
+	});
 	describe("getTranspose", () => {
 		it("should transpose a square matrix", () => {
 			const result = getTranspose(new Float32Array([

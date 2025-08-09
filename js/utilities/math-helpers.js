@@ -16,7 +16,7 @@ export function radiansToDegrees(rad){
  * @returns 
  */
 
-export function cartesianToLatLng([x, y, z]) {
+export function cartesianToSpherical([x, y, z]) {
 	const radius = Math.sqrt(x ** 2 + y ** 2 + z ** 2);
 	return [
 		Math.asin(y / radius),
@@ -30,11 +30,11 @@ export function cartesianToLatLng([x, y, z]) {
  * @param {[number, number, number]} latLng
  * @returns 
  */
-export function latLngToCartesian([latitude, longitude, radius = 1]){
+export function sphericalToCartesian([phi, theta, radius = 1]){
 	return [
-		radius * Math.cos(latitude) * Math.cos(longitude),
-		radius * Math.sin(latitude),
-		radius * Math.cos(latitude) * Math.sin(longitude),
+		radius * Math.cos(phi) * Math.cos(theta),
+		radius * Math.sin(phi),
+		radius * Math.cos(phi) * Math.sin(theta),
 	];
 }
 

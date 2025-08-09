@@ -1,6 +1,5 @@
 import { loadImage } from "./image-utils.js";
 import { packMesh, getPaddedSize } from "./buffer-utils.js";
-import { loadObj } from "./obj-loader.js";
 import { Mesh } from "../entities/mesh.js";
 
 /**
@@ -52,15 +51,10 @@ export async function uploadTexture(device, urlOrUrls, options = {}) {
  * 
  * @param {GPUDevice} device 
  * @param {Mesh} mesh 
- * @param {{ positionSize: number, uvSize?: number, normalSize?: number, colorSize?: number, label?: string }} options 
+ * @param {{ label?: string }} options 
  */
-export function uploadMesh(device, mesh, options){
-	const vertices = packMesh(mesh, { 
-		positionSize: options.positionSize, 
-		uvSize: options.uvSize,
-		normalSize: options.normalSize,
-		colorSize: options.colorSize
-	 });
+export function uploadMesh(device, mesh, options = {}){
+	const vertices = packMesh(mesh);
 	
 	const vertexBuffer = device.createBuffer({
 		label: options.label,
@@ -91,34 +85,6 @@ export function uploadMesh(device, mesh, options){
 }
 
 /**
- * Loads an .obj file
- * @param {GPUDevice} device 
- * @param {string} url 
- * @param {{ color?: [number, number, number, number], reverseWinding?: boolean, label?: string, normalizePositions?: boolean | number }} options
- * @returns 
- */
-export async function uploadObj(device, url, options = {}){
-	const response = await fetch(url);
-	if (!response.ok) throw new Error(`Could not fetch obj content from ${url}`);
-	const objText = await response.text();
-	const objContent = loadObj(objText, { color: options.color, reverseWinding: options.reverseWinding });
-	const mesh = new Mesh(objContent);
-	if(options.normalizePositions){
-		mesh.normalizePositions(typeof options.normalizePositions === "number" ? options.normalizePositions : 1);
-	}
-	return {
-		mesh,
-		...uploadMesh(device, mesh, { 
-			positionSize: objContent.positionSize, 
-			uvSize: objContent.uvSize, 
-			normalSize: objContent.normalSize, 
-			colorSize: objContent.colorSize,
-			label: options.label ?? url
-		})
-	};
-}	
-
-/**
  * 
  * @param {GPUDevice} device 
  * @param {string} url 
@@ -141,4 +107,33 @@ export async function uploadShader(device, url, options = {}) {
 	}
 
 	return shaderModule;
+}
+
+/**
+ * 
+ * @param {Mesh} mesh 
+ * @returns {GPUVertexBufferLayout}
+ */
+export function getVertexBufferLayout(mesh){
+	const attributes = [];
+	let index = 0;
+	let offset = 0;
+
+	for(const [attrName, sizeAttrName] of Mesh.attributeOrdering){
+		if(mesh[attrName]?.length > 0 && mesh[sizeAttrName] > 0){
+			attributes.push({
+				shaderLocation: index,
+				offset,
+				format: `float32x${mesh[sizeAttrName]}`
+			});
+			index++;
+			offset += 4 * mesh[sizeAttrName];
+		}
+	}
+
+	return [{
+		attributes,
+		arrayStride: offset,
+		stepMode: "vertex"
+	}];
 }

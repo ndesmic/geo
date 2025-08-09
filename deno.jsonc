@@ -1,6 +1,7 @@
 {
   "tasks": {
-    "start": "deno run -A https://deno.land/std@0.201.0/http/file_server.ts"
+    "start": "deno run -A https://deno.land/std/http/file_server.ts",
+    "test:one": "deno test ./js/utilities/buffer-utils.test.js"
   },
   "imports": {
     "@std/expect": "jsr:@std/expect@^1.0.16",

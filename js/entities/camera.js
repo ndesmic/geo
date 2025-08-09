@@ -1,5 +1,5 @@
 import { getOrthoMatrix, getProjectionMatrix, getLookAtMatrix, UP, subtractVector } from "../utilities/vector.js";
-import { cartesianToLatLng, latLngToCartesian, clamp } from "../utilities/math-helpers.js";
+import { cartesianToSpherical, sphericalToCartesian, clamp } from "../utilities/math-helpers.js";
 
 export class Camera {
 	#position = new Float32Array([0,0,-1]);
@@ -76,7 +76,7 @@ export class Camera {
 		const newLat = currentLat + lat;
 		const newLong = currentLng - long;
 		const newRadius = Math.max(0.1, r + radius);
-		this.#position = latLngToCartesian([newLat, newLong, newRadius]);
+		this.#position = sphericalToCartesian([newLat, newLong, newRadius]);
 	}
 
 	lookAt(x, y, z){
@@ -85,7 +85,7 @@ export class Camera {
 
 	getOrbit(){
 		const targetDelta = subtractVector(this.#position, this.#target);
-		return cartesianToLatLng(targetDelta);
+		return cartesianToSpherical(targetDelta);
 	}
 
 	getViewMatrix(){

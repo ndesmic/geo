@@ -1,3 +1,6 @@
+import { loadObj } from "./obj-loader.js";
+import { Mesh } from "../entities/mesh.js";
+
 export function downloadUrl(url, fileName) {
 	const link = document.createElement("a");
 	link.href = url;
@@ -9,3 +12,18 @@ export function downloadBlob(blob, fileName) {
 	downloadUrl(url, fileName);
 	URL.revokeObjectURL(url);
 }
+/**
+ * Loads an .obj file
+ * @param {GPUDevice} device 
+ * @param {string} url 
+ * @param {{ color?: [number, number, number, number], reverseWinding?: boolean, label?: string }} options
+ * @returns 
+ */
+export async function fetchObjMesh(url, options = {}) {
+	const response = await fetch(url);
+	if (!response.ok) throw new Error(`Could not fetch obj content from ${url}`);
+	const objText = await response.text();
+	const objContent = loadObj(objText, { color: options.color, reverseWinding: options.reverseWinding });
+	const mesh = new Mesh(objContent);
+	return mesh;
+}	
