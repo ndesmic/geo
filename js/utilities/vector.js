@@ -8,7 +8,7 @@ export function getRotationXMatrix(theta) {
 }
 
 export function getRotationYMatrix(theta) {
-	return Float32Array([
+	return new Float32Array([
 		Math.cos(theta), 0, Math.sin(theta), 0,
 		0, 1, 0, 0,
 		-Math.sin(theta), 0, Math.cos(theta), 0,
@@ -52,18 +52,24 @@ export function getIdentityMatrix() {
 	]);
 }
 
-export function multiplyMatrixVector(vector, matrix) {
-	//normalize 3 vectors
-	if (vector.length === 3) {
-		vector.push(1);
+/**
+ * 
+ * @param {Float32Array} vector 
+ * @param {Float32Array} matrix
+ * @param {number} size
+ * @returns 
+ */
+export function multiplyMatrixVector(vector, matrix, size) {
+	const newVector = new Float32Array(size);
+	for(let i = 0; i < size; i++){
+		let sum = 0;
+		for(let j = 0; j < size; j++){
+			sum += vector[j] * matrix[i * size + j] 
+		}
+		newVector.set([sum], i);
 	}
 
-	return [
-		vector[0] * matrix[0][0] + vector[1] * matrix[0][1] + vector[2] * matrix[0][2] + vector[3] * matrix[0][3],
-		vector[0] * matrix[1][0] + vector[1] * matrix[1][1] + vector[2] * matrix[1][2] + vector[3] * matrix[1][3],
-		vector[0] * matrix[2][0] + vector[1] * matrix[2][1] + vector[2] * matrix[2][2] + vector[3] * matrix[2][3],
-		vector[0] * matrix[3][0] + vector[1] * matrix[3][1] + vector[2] * matrix[3][2] + vector[3] * matrix[3][3]
-	];
+	return newVector;
 }
 
 export function getVectorMagnitude(vec) {
@@ -74,28 +80,44 @@ export function getVectorMagnitude(vec) {
 	return Math.sqrt(sum);
 }
 
+/**
+ * 
+ * @param {number[]} a 
+ * @param {number[]} b 
+ * @returns 
+ */
 export function addVector(a, b) {
-	return [
-		a[0] + b[0],
-		a[1] + b[1],
-		a[2] + b[2]
-	];
+	return a.map((x, i) => x + b[i]);
 }
 
+/**
+ * 
+ * @param {number[]} a 
+ * @param {number[]} b 
+ * @returns 
+ */
 export function subtractVector(a, b) {
 	return a.map((x, i) => x - b[i]);
 }
 
+/**
+ * 
+ * @param {number[]} vec 
+ * @param {number} s 
+ * @returns 
+ */
 export function scaleVector(vec, s) {
 	return vec.map(x => x * s);
 }
 
+/**
+ * 
+ * @param {number[]} vec 
+ * @param {number} s 
+ * @returns 
+ */
 export function divideVector(vec, s) {
-	return [
-		vec[0] / s,
-		vec[1] / s,
-		vec[2] / s
-	];
+	return scaleVector(vec, 1/s);
 }
 
 export function normalizeVector(vec) {
@@ -447,7 +469,8 @@ export function getInverse(matrix, shape) {
 /**
  * 
  * @param {Float32Array} matrix 
- * @param {[number,number]} shape
+ * @param {[number,number]} oldShape
+ * @param {[number,number]} newShape
  * @returns 
  */
 export function trimMatrix(matrix, oldShape, newShape){

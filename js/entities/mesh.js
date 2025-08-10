@@ -1,71 +1,124 @@
-import { multiplyMatrix, getIdentityMatrix, getTranslationMatrix, getScaleMatrix, getRotationXMatrix, getRotationYMatrix, getRotationZMatrix, getTranspose } from "../utilities/vector.js";
+import { multiplyMatrix, getIdentityMatrix, getTranslationMatrix, getScaleMatrix, getRotationXMatrix, getRotationYMatrix, getRotationZMatrix, getTranspose, multiplyMatrixVector, addVector, divideVector, subtractVector, getInverse, trimMatrix, normalizeVector } from "../utilities/vector.js";
+import { chunk } from "../utilities/iterator-utils.js";
 
 export class Mesh {
 	#positions;
+	#positionSize;
 	#colors;
-	#normals;
+	#colorSize;
 	#uvs;
-	#centroids;
-	#indices;
+	#uvSize;
+	#normals;
+	#normalSize;
 	#tangents;
+	#tangentSize;
+	#indices;
+	#vertexLength;
 	#material;
-	#length;
 	#transforms = [];
 
+	/** @typedef { "positions" | "colors" | "uvs" | "normals" | "tangents" } AttributeKey */
+	/** @type { readonly [AttributeKey, string][] } */
+	static attributeOrdering = [
+		["positions", "positionSize"],
+		["colors", "colorSize"],
+		["uvs", "uvSize"],
+		["normals", "normalSize"],
+		["tangents", "tangentSize"]
+	];
+
+	static empty = new Float32Array(0);
+
 	constructor(mesh) {
-		this.positions = mesh.positions;
-		this.colors = mesh.colors;
-		this.normals = mesh.normals;
-		this.uvs = mesh.uvs;
-		this.centroids = mesh.centroids;
-		this.indices = mesh.indices;
-		this.tangents = mesh.tangents;
+		this.positions = mesh.positions ?? Mesh.empty;
+		this.colors = mesh.colors ?? Mesh.empty;
+		this.normals = mesh.normals ?? Mesh.empty;
+		this.uvs = mesh.uvs ?? Mesh.empty;
+		this.indices = mesh.indices ?? Mesh.empty;
+		this.tangents = mesh.tangents ?? Mesh.empty;
+		this.positionSize = mesh.positionSize ?? 3;
+		this.uvSize = mesh.uvSize ?? 2;
+		this.normalSize = mesh.normalSize ?? 3;
+		this.colorSize = mesh.colorSize ?? 4;
+		this.tangentSize = mesh.tangentSize ?? 3;
+		this.vertexLength = mesh.vertexLength;
 		this.material = mesh.material;
-		this.length = mesh.length;
-		this.positionsSize = mesh.positionsSize ?? 3;
 	}
 
 	set positions(val) {
+		if(!val || val.length === 0){
+			this.#positions = Mesh.empty;
+		}
 		this.#positions = new Float32Array(val);
 	}
 	get positions() {
 		return this.#positions;
 	}
+	set positionSize(val){
+		this.#positionSize = val;
+	}
+	get positionSize(){
+		return this.#positions.length > 0 ? this.#positionSize : 0;
+	}
 	set colors(val) {
+		if (!val || val.length === 0) {
+			this.#colors = Mesh.empty;
+		}
 		this.#colors = new Float32Array(val);
 	}
 	get colors() {
 		return this.#colors;
 	}
-	set normals(val) {
-		this.#normals = new Float32Array(val);
+	set colorSize(val) {
+		this.#colorSize = val;
 	}
-	get normals() {
-		return this.#normals;
+	get colorSize() {
+		return this.#colors.length > 0 ? this.#colorSize : 0;
 	}
 	set uvs(val) {
+		if (!val || val.length === 0) {
+			this.#uvs = Mesh.empty;
+		}
 		this.#uvs = new Float32Array(val);
 	}
 	get uvs() {
 		return this.#uvs;
 	}
-	set centroids(val){
-		this.#centroids = new Float32Array(val);
+	set uvSize(val) {
+		this.#uvSize = val;
 	}
-	get centroids(){
-		return this.#centroids;
+	get uvSize() {
+		return this.#uvs.length > 0 ? this.#uvSize : 0;
+	}
+	set normals(val) {
+		if (!val || val.length === 0) {
+			this.#normals = Mesh.empty;
+		}
+		this.#normals = new Float32Array(val);
+	}
+	get normals() {
+		return this.#normals;
+	}
+	set normalSize(val) {
+		this.#normalSize = val;
+	}
+	get normalSize() {
+		return this.#normals.length > 0 ? this.#normalSize : 0;
 	}
 	set tangents(val){
-		this.#tangents = val;
+		if (!val || val.length === 0) {
+			this.#tangents = Mesh.empty;
+		}
+		this.#tangents = new Float32Array(val);
 	}
 	get tangents(){
 		return this.#tangents;
 	}
-	get material() {
-		return this.#material;
+	set tangentSize(val) {
+		this.#tangentSize = val;
 	}
-	set material(val) {
-		this.#material = val;
+	get tangentSize() {
+		return this.#tangents.length > 0 ? this.#tangentSize : 0;
 	}
 	set indices(val) {
 		this.#indices = new Uint16Array(val);
@@ -73,11 +126,34 @@ export class Mesh {
 	get indices() {
 		return this.#indices;
 	}
-	set length(val){
-		this.#length = val;
+	set vertexLength(val){
+		this.#vertexLength = val;
 	}
-	get length(){
-		return this.#length;
+	get vertexLength(){
+		return this.#vertexLength;
+	}
+	get material() {
+		return this.#material;
+	}
+	set material(val) {
+		this.#material = val;
+	}
+	setMaterial(val){
+		this.#material = val;
+		return this;
+	}
+	/**
+	 * 
+	 * @param {(AttributeKey[]} attrNames 
+	 * @returns 
+	 */
+	useAttributes(attrNames){
+		for(const [attrName, _attrSizeName] of Mesh.attributeOrdering){
+			if(!attrNames.includes(attrName)){
+				this[attrName] = null;
+			}
+		}
+		return this;
 	}
 	translate({ x = 0, y = 0, z = 0 }) {
 		this.#transforms.push(getTranslationMatrix(x, y ,z));
@@ -88,7 +164,7 @@ export class Mesh {
 		return this;
 	}
 	rotate({ x, y, z }) {
-		//there's an order dependency here... something something quaterions...
+		//there's an order dependency here... something something quaternions...
 		if (x) {
 			this.#transforms.push(getRotationXMatrix(x));
 		}
@@ -103,29 +179,141 @@ export class Mesh {
 	resetTransforms() {
 		this.#transforms = [];
 	}
-	getModelMatrix() {
-		const modelMatrix = this.#transforms.reduce((mm, tm) => multiplyMatrix(tm, mm), getIdentityMatrix());
-		return getTranspose(modelMatrix, [4,4]);
-	}
-	normalizePositions(scale){
-		let max = -Infinity;
+	bakeTransforms(){
+		//positions
+		const modelMatrix = this.getModelMatrix();
+		const transformedPositions = chunk(this.positions, this.positionSize)
+			.map(values => {
+				const lengthToPad = 4 - values.length;
+				switch(lengthToPad){
+					case 1:{
+						return [...values, 1.0]
+					}
+					case 2:{
+						return [...values, 0.0, 1.0];
+					}
+					case 3: {
+						return [...values, 0.0, 0.0, 1.0];
+					}
+					default: {
+						return [0.0, 0.0, 0.0, 1.0];
+					}
+				}
+			})
+			.map(values => multiplyMatrixVector(values, modelMatrix, this.positionSize + 1)) //need homogenous coordinates for positions
+			.toArray();
 
-		for(let i = 0; i < this.#positions.length; i += this.positionsSize){
-			for(let j = 0; j < this.positionsSize; j++){
-				const coord = this.#positions[i * this.positionsSize + j];
-				if(coord > max){
-					max = coord
+		const normalMatrix = getTranspose(
+			getInverse(
+				trimMatrix(modelMatrix, [4,4], [this.normalSize,this.normalSize]), 
+			[this.normalSize,this.normalSize]), 
+		[this.normalSize,this.normalSize]);
+		const transformedNormals = chunk(this.normals, this.normalSize)
+			.map(values => multiplyMatrixVector(values, normalMatrix, this.normalSize))
+			.map(values => normalizeVector(values))
+			.toArray();
+
+		//collect
+		const newPositionsBuffer = new Float32Array(this.vertexLength * this.positionSize);
+		for(let i = 0; i < transformedPositions.length; i++){
+			newPositionsBuffer.set(transformedPositions[i].slice(0, this.positionSize), i * this.positionSize)
+		}
+
+		const newNormalsBuffer = new Float32Array(this.vertexLength * this.normalSize);
+		for (let i = 0; i < transformedNormals.length; i++) {
+			newNormalsBuffer.set(transformedNormals[i].slice(0, this.normalSize), i * this.normalSize)
+		}
+
+		this.positions = newPositionsBuffer;
+		this.normals = newNormalsBuffer;
+		this.resetTransforms();
+		return this;
+	}
+	getModelMatrix() {
+		return this.#transforms.reduce((mm, tm) => multiplyMatrix(tm, [4,4], mm, [4,4]), getIdentityMatrix());
+	}
+	getNormalMatrix(){
+		return getTranspose(getInverse(trimMatrix(modelMatrix, [3, 3])));
+	}
+	/**
+	 * Normalizes positions to be unit volume and centers
+	 * @param {{ scale?: boolean, center?: boolean }} options
+	 * @returns 
+	 */
+	normalizePositions(options = {}){
+		const shouldCenter = options.center ?? true;
+		const shouldScale = options.scale ?? true;
+		const max = new Array(this.positionSize).fill(-Infinity);
+		const min = new Array(this.positionSize).fill(Infinity);
+
+		for(let i = 0; i < this.vertexLength; i++){
+			for(let j = 0; j < this.positionSize; j++){
+				const coord = this.#positions[i * this.positionSize + j];
+				if(coord > max[j]){
+					max[j] = coord
+				}
+				if(coord < min[j]){
+					min[j] = coord;
 				}
 			}
 		}
 
-		for(let i = 0; i < this.#positions.length; i++){
-			this.#positions[i] /= max;
-			if(scale){
-				this.#positions[i] *= scale;
+		const length = subtractVector(max, min);
+		const maxLength = Math.max(...length);
+
+		let currentCenter;
+		if(shouldScale){
+			for(let i = 0; i < this.positions.length; i++){
+				this.#positions[i] /= maxLength;
+			}
+			currentCenter = addVector(divideVector(min, maxLength), divideVector(divideVector(length, maxLength), 2));
+		} else {
+			currentCenter = addVector(min, divideVector(length, 2));
+		}
+
+		if(shouldCenter){
+			for (let i = 0; i < this.positions.length; i++) {
+				const dimension = i % this.positionSize;
+				this.#positions[i] -= currentCenter[dimension];
 			}
 		}
 
+		return this;
+	}
+	resizeUvs(uvSize){
+		if(this.uvSize === uvSize) return;
+
+		const newUvs = new Float32Array(this.vertexLength * uvSize);
+		const uvs = chunk(this.uvs, this.uvSize).toArray();
+		if(this.uvSize > uvSize){ //shrink
+			for(let i = 0; i < this.vertexLength; i++){
+				newUvs.set(uvs[i].slice(0, uvSize), i * uvSize);
+			}
+		} else {
+			for (let i = 0; i < this.vertexLength; i++) {
+				newUvs.set(uvs[i], i * uvSize);
+			}
+		}
+		this.uvs = newUvs;
+		this.uvSize = uvSize;
+		return this;
+	}
+	resizePositions(positionSize) {
+		if (this.positionSize === positionSize) return;
+
+		const newPositions = new Float32Array(this.vertexLength * positionSize);
+		const positions = chunk(this.positions, this.positionSize).toArray();
+		if (this.positionSize > positionSize) { //shrink
+			for (let i = 0; i < this.vertexLength; i++) {
+				newPositions.set(positions[i].slice(0, positionSize), i * positionSize);
+			}
+		} else {
+			for (let i = 0; i < this.vertexLength; i++) {
+				newPositions.set(positions[i], i * positionSize);
+			}
+		}
+		this.positions = newPositions;
+		this.positionSize = positionSize;
 		return this;
 	}
 }

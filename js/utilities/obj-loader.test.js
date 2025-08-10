@@ -32,7 +32,7 @@ describe("object loader", () => {
 			]);
 			expect(obj.positionSize).toEqual(3);
 			expect(obj.uvSize).toEqual(2);
-			expect(obj.length).toEqual(3);
+			expect(obj.vertexLength).toEqual(3);
 		});
 		it("should load quad faced object with multi-indexed faces", () => {
 			const obj = loadObj(`
@@ -76,7 +76,7 @@ describe("object loader", () => {
 			expect(obj.positionSize).toEqual(3);
 			expect(obj.uvSize).toEqual(2);
 			expect(obj.normalSize).toEqual(3);
-			expect(obj.length).toEqual(4);
+			expect(obj.vertexLength).toEqual(4);
 		});
 		it("should load quad faced object with multi-indexed faces with reverse winding", () => {
 			const obj = loadObj(`
@@ -120,7 +120,7 @@ describe("object loader", () => {
 			expect(obj.positionSize).toEqual(3);
 			expect(obj.uvSize).toEqual(2);
 			expect(obj.normalSize).toEqual(3);
-			expect(obj.length).toEqual(4);
+			expect(obj.vertexLength).toEqual(4);
 		});
 		it("should load triangle faced object with multi-indexed faces", () => {
 			const obj = loadObj(`
@@ -301,7 +301,7 @@ describe("object loader", () => {
 			expect(obj.positionSize).toEqual(3);
 			expect(obj.uvSize).toEqual(2);
 			expect(obj.normalSize).toEqual(3);
-			expect(obj.length).toEqual(36);
+			expect(obj.vertexLength).toEqual(36);
 		});
 		it("should load triangle faced object with multi-indexed faces with reversed winding", () => {
 			const obj = loadObj(`
@@ -482,7 +482,7 @@ describe("object loader", () => {
 			expect(obj.positionSize).toEqual(3);
 			expect(obj.uvSize).toEqual(2);
 			expect(obj.normalSize).toEqual(3);
-			expect(obj.length).toEqual(36);
+			expect(obj.vertexLength).toEqual(36);
 		});
 	});
 });

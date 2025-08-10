@@ -1,27 +1,27 @@
-import { latLngToCartesian, inverseLerp, TWO_PI } from "./math-helpers.js";
+import { sphericalToCartesian, inverseLerp, TWO_PI } from "./math-helpers.js";
 
 /**
- * @typedef {{ positions: Float32Array, colors?: Float32Array, uvs?: Float32Array, normals?: Float32Array, length: number }} Mesh
+ * @typedef {{ positions: Float32Array, colors?: Float32Array, uvs?: Float32Array, normals?: Float32Array, length: number }} MeshData
  */
 
 /**
  * 
  * @param {number} density 
  * @param {{ uvOffset?: number }} options 
- * @returns {Mesh}
+ * @returns {MeshData}
  */
 
 export function uvSphere(density, { uvOffset } = {}){
 	const radiansPerUnit = Math.PI / density;
 	const pointsPerRing = density * 2;
-	const totalVertices = ((density + 1) * (pointsPerRing + 1)) - 2; //poles don't need UV overlap vertex
+	const vertexLength = ((density + 1) * (pointsPerRing + 1)) - 2; //poles don't need UV overlap vertex
 	const uOffset = uvOffset?.u ?? 0;
 	const vOffset = uvOffset?.y ?? 0;
 
 	//positions
-	const positions = new Float32Array(totalVertices * 3);
-	const uvs = new Float32Array(totalVertices * 2);
-	const normals = new Float32Array(totalVertices * 3);
+	const positions = new Float32Array(vertexLength * 3);
+	const uvs = new Float32Array(vertexLength * 2);
+	const normals = new Float32Array(vertexLength * 3);
 
 	{
 		let positionBufferIndex = 0;
@@ -34,7 +34,7 @@ export function uvSphere(density, { uvOffset } = {}){
 			const vertexLength = pointsPerRing + (i > 0 && i < density ? 1 : 0); //middle rings have one overlap for U value
 
 			for(let j = 0; j < vertexLength; j++){
-				const position = latLngToCartesian([latitude, longitude, 1]);
+				const position = sphericalToCartesian([latitude, longitude, 1]);
 				positions.set(position, positionBufferIndex);
 				positionBufferIndex += 3;
 
@@ -54,7 +54,8 @@ export function uvSphere(density, { uvOffset } = {}){
 	}
 
 	//indices/triangles
-	const indices = new Uint16Array(density * pointsPerRing * 6);
+	//pointsPerRing faces with 6 verts each (quad) for middle layers, pointsPerRing faces with 3 verts (tris) for top and bottom (2)
+	const indices = new Uint16Array(((density - 2) * pointsPerRing * 6) + (2 * pointsPerRing * 3));
 	{
 		const sliceVertexCount = density * 2;
 		let indexBufferIndex = 0;
@@ -73,12 +74,10 @@ export function uvSphere(density, { uvOffset } = {}){
 				if(ring === 0){
 					indices.set([currentPoint, nextRingNextPoint, nextRingPoint], indexBufferIndex);
 					indexBufferIndex += 3;
-				}
-				if(ring === density - 1){
+				} else if(ring === density - 1){
 					indices.set([currentPoint, nextPoint, nextRingPoint], indexBufferIndex);
 					indexBufferIndex += 3;
-				}
-				if(ring > 0 && ring < density - 1 && density > 2){
+				} else if(ring > 0 && ring < density - 1 && density > 2){
 					indices.set([
 						currentPoint,
 						nextRingNextPoint,
@@ -100,17 +99,19 @@ export function uvSphere(density, { uvOffset } = {}){
 
 	return {
 		positions,
-		positionStride: 3,
+		positionSize: 3,
 		uvs,
+		uvSize: 2,
 		normals,
+		normalSize: 3,
 		indices,
-		length: totalVertices
+		vertexLength
 	};
 }
 
 /**
  * Generates a quad facing negative Z, like a wall
- * @returns {Mesh}
+ * @returns {MeshData}
  */
 export function quad(){
 	return {
@@ -120,40 +121,30 @@ export function quad(){
 			1.0, 1.0, 0.0,
 			-1.0, 1.0, 0.0,
 		]),
-		positionStride: 3,
+		positionSize: 3,
 		uvs: new Float32Array([
 			0.0, 1.0,
 			1.0, 1.0,
 			1.0, 0.0,
 			0.0, 0.0,
 		]),
+		uvSize: 2,
+		normals: new Float32Array([
+			0, 0, -1,
+			0, 0, -1,
+			0, 0, -1,
+			0, 0, -1
+		]),
+		normalSize: 3,
 		indices: [0,1,2,0,2,3],
-		length: 4
+		vertexLength: 4
 	}
 }
 
 /**
- * Generates a screen space quad. For UI/backgrounds
- * @returns {Mesh}
+ * Generate a triangle that covers the whole screen
+ * @returns {MeshData}
  */
-export function screenQuad() {
-	return {
-		positions: new Float32Array([
-			-1.0, -1.0,
-			1.0, -1.0,
-			1.0, 1.0,
-			-1.0, 1.0,
-		]),
-		uvs: new Float32Array([
-			0.0, 1.0,
-			1.0, 1.0,
-			1.0, 0.0,
-			0.0, 0.0,
-		]),
-		indices: [0, 1, 2, 0, 2, 3],
-		length: 4
-	}
-}
 export function screenTri(){
 	return {
 		positions: new Float32Array([
@@ -161,12 +152,74 @@ export function screenTri(){
 			3.0, -1.0,
 			-1.0, 3.0
 		]),
+		positionSize: 2,
 		uvs: new Float32Array([
 			0.0, -1.0,
 			3.0, 1.0,
 			0.0, 3.0,
 		]),
+		uvSize: 2,
+		normals: new Float32Array([
+			0, 0, -1,
+			0, 0, -1,
+			0, 0, -1
+		]),
 		indices: [0,1,2],
-		length: 3
+		vertexLength: 3
 	}
+}
+
+/**
+ * Generates a flat surface made up of multiple quads, faces +Y, each quad is 1x1
+ * @param {number} height 
+ * @param {number} width 
+ */
+export function surfaceGrid(height, width){
+	const vertexLength = (height + 1) * (width + 1);
+	const positions = new Float32Array(vertexLength * 3);
+	const uvs = new Float32Array(vertexLength * 2);
+	const normals = new Float32Array(vertexLength * 3);
+	const tangents = new Float32Array(vertexLength * 3);
+	const indices = new Int16Array(height * width * 6);
+
+	let z = -(height / 2);
+
+	for (let row = 0; row < height + 1; row++) {
+		let x = -(width / 2);
+		for (let col = 0; col < width + 1; col++) {
+			positions.set([
+				x, 0, z 
+			], (row * (width + 1) + col) * 3);
+			uvs.set([
+				col / width, row / height
+			], (row * (width + 1) + col) * 2);
+			normals.set([
+				0, 1, 0
+			], (row * (width + 1) + col) * 3);
+			tangents.set([
+				1, 0, 0
+			], (row * (width + 1) + col) * 3)
+			x++;
+		}
+		z++;
+	}
+
+	for(let row = 0; row < height; row++){
+		for(let col = 0; col < width; col++){
+			const index = row * (width + 1) + col;
+			indices.set([
+				index, index + 1, index + width + 2, //take into account the extra vert at end of row
+				index, index + width + 2, index + width + 1
+			], (row * width + col) * 6);
+		}
+	}
+
+	return {
+		positions,
+		uvs,
+		normals,
+		indices,
+		tangents,
+		vertexLength
+	};
 }

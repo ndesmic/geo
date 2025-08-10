@@ -1,9 +1,13 @@
 import { Camera } from "../entities/camera.js";
 import { Mesh } from "../entities/mesh.js";
-import { screenTri, uvSphere } from "../utilities/mesh-generator.js";
-import { getAlignments } from "../utilities/buffer-utils.js";
+import { quad, screenTri, surfaceGrid } from "../utilities/mesh-generator.js";
+import { packLights, packStruct } from "../utilities/buffer-utils.js";
 import { getTranspose, getInverse, trimMatrix, multiplyMatrix } from "../utilities/vector.js";
-import { uploadMesh, uploadShader, uploadTexture, uploadObj } from "../utilities/wgpu-utils.js";
+import { uploadMesh, uploadShader, uploadTexture, getVertexBufferLayout, createColorTexture } from "../utilities/wgpu-utils.js";
+import { fetchObjMesh } from "../utilities/data-utils.js";
+import { Material } from "../entities/material.js";
+import { Light } from "../entities/light.js";
+import { sphericalToCartesian } from "../utilities/math-helpers.js";
 
 export class GpuEngine {
 	#canvas;
@@ -12,10 +16,12 @@ export class GpuEngine {
 	#device;
 	#raf;
 	#isRunning = false;
-	#meshes = new Map();
+	#meshContainers = new Map();
 	#pipelines = new Map();
 	#cameras = new Map();
+	#lights = new Map();
 	#textures = new Map();
+	#materials = new Map();
 	#samplers = new Map();
 	#pipelineMesh = new Map();
 
@@ -34,9 +40,11 @@ export class GpuEngine {
 		});
 
 		this.initializeCameras();
-		await this.initializeMeshes();
 		await this.initializeTextures();
+		this.initializeMaterials();
 		this.initializeSamplers();
+		await this.initializeMeshes();
+		this.initializeLights();
 		await this.initializePipelines();
 		this.initializePipelineMesh();
 	}
@@ -52,35 +60,60 @@ export class GpuEngine {
 		}))
 	}
 	async initializeMeshes(){
-		// {
-		// 	const mesh = new Mesh(uvSphere(8))
-		// 	const { vertexBuffer, indexBuffer } = uploadMesh(this.#device, mesh, { positionLength: 3, uvLength: 2, label: "earth-mesh" });
-		// 	this.#meshes.set("earth", { vertexBuffer, indexBuffer, mesh });
-		// }
 		{
-			const { mesh, vertexBuffer, indexBuffer} = await uploadObj(this.#device, "./objs/teapot-low.obj", { 
-				reverseWinding: true, 
-				normalizePositions: 1
+			const mesh = await fetchObjMesh("./objs/teapot.obj", { reverseWinding: true });
+			mesh.useAttributes(["positions", "uvs", "normals"])
+				.normalizePositions()
+				.resizeUvs(2)
+				//.rotate({ x : -Math.PI / 2 })
+				//.bakeTransforms()
+				.setMaterial("marble");
+			const { vertexBuffer, indexBuffer } = await uploadMesh(this.#device, mesh, { label: "teapot" });
+			this.#meshContainers.set("teapot", { vertexBuffer, indexBuffer, mesh });
+		}
+		{
+			const mesh = new Mesh(surfaceGrid(2,2))
+				.useAttributes(["positions", "uvs", "normals"])
+				.translate({ y: -0.25 })
+				.bakeTransforms()
+				.setMaterial("red-fabric")
+			const { vertexBuffer, indexBuffer } = uploadMesh(this.#device, mesh, {
+				label: "floor-mesh"
 			});
-			this.#meshes.set("teapot", { vertexBuffer, indexBuffer, mesh });
+			this.#meshContainers.set("floor", { vertexBuffer, indexBuffer, mesh });
 		}
-		{
-			const mesh = new Mesh(screenTri());
-			const { vertexBuffer, indexBuffer } = uploadMesh(this.#device, mesh, { positionSize: 2, label: "background-mesh" });
-			this.#meshes.set("background", { vertexBuffer, indexBuffer, mesh });
-		}
+		// {
+		// 	const mesh = new Mesh(screenTri());
+		// 	const { vertexBuffer, indexBuffer } = uploadMesh(this.#device, mesh, { positionSize: 2, label: "background-mesh" });
+		// 	this.#meshes.set("background", { vertexBuffer, indexBuffer, mesh });
+		// }
+	}
+	initializeLights(){
+		this.#lights.set("light", new Light({
+			type: "point",
+			position: sphericalToCartesian([ Math.PI / 4, 0, 2]),
+			color: [1,1,1,1]
+		}));
+		// this.#lights.set("light2", new Light({
+		// 	type: "point",
+		// 	position: sphericalToCartesian([Math.PI / 4, Math.PI, 2]),
+		// 	color: [1,0,0,1]
+		// }));
 	}
 	async initializeTextures(){
-		this.#textures.set("earth", await uploadTexture(this.#device, "./img/earth.png"));
+		this.#textures.set("marble", await uploadTexture(this.#device, "./img/marble-white/marble-white-base.jpg"));
+		this.#textures.set("marble-roughness", await uploadTexture(this.#device, "./img/marble-white/marble-white-roughness.jpg"));
+		this.#textures.set("red-fabric", await uploadTexture(this.#device, "./img/red-fabric/red-fabric-base.jpg"));
+		this.#textures.set("red-fabric-roughness", await uploadTexture(this.#device, "./img/red-fabric/red-fabric-roughness.jpg"));
 
-		this.#textures.set("space", await uploadTexture(this.#device, [
-			"./img/space_right.png",
-			"./img/space_left.png",
-			"./img/space_top.png",
-			"./img/space_bottom.png",
-			"./img/space_front.png",
-			"./img/space_back.png"
-		]));
+		// this.#textures.set("space", await uploadTexture(this.#device, [
+		// 	"./img/space_right.png",
+		// 	"./img/space_left.png",
+		// 	"./img/space_top.png",
+		// 	"./img/space_bottom.png",
+		// 	"./img/space_front.png",
+		// 	"./img/space_back.png"
+		// ]));
 
 		this.#textures.set("depth", this.#device.createTexture({
 			label: "depth-texture",
@@ -92,48 +125,44 @@ export class GpuEngine {
 			format: "depth32float",
 			usage: GPUTextureUsage.RENDER_ATTACHMENT
 		}));
+
+		this.#textures.set("dummy", createColorTexture(this.#device, { label: "dummy-texture" }));
 	}
 	initializeSamplers(){
 		const sampler = this.#device.createSampler({
 			addressModeU: "repeat",
 			addressModeV: "repeat",
 			magFilter: "linear",
-			minFilter: "nearest"
+			minFilter: "linear"
 		});
-		this.#samplers.set("main", sampler);
+		this.#samplers.set("default", sampler);
+	}
+	initializeMaterials(){
+		this.#materials.set("marble", new Material({
+			texture: "marble",
+			useSpecularMap: false,
+			glossColor: [4,4,4,1],
+			specularMap: "marble-roughness"
+		}));
+		this.#materials.set("red-fabric", new Material({
+			texture: "red-fabric",
+			useSpecularMap: false,
+			glossColor: [0,0,0,1],
+			specularMap: "red-fabric-roughness"
+		}));
 	}
 	async initializePipelines(){
 		{
-			const vertexBufferDescriptor = [{
-				attributes: [
-					{
-						shaderLocation: 0,
-						offset: 0,
-						format: "float32x3"
-					},
-					{
-						shaderLocation: 1,
-						offset: 12,
-						format: "float32x2"
-					},
-					{
-						shaderLocation: 2,
-						offset: 20,
-						format: "float32x3"
-					}
-				],
-				arrayStride: 32,
-				stepMode: "vertex"
-			}];
+			const vertexBufferLayout = getVertexBufferLayout(this.#meshContainers.get("teapot").mesh);
 
-			const shaderModule = await uploadShader(this.#device, "./shaders/textured-earth.wgsl");
+			const shaderModule = await uploadShader(this.#device, "./shaders/textured-lit-specular.wgsl");
 
 			const pipelineDescriptor = {
 				label: "main-pipeline",
 				vertex: {
 					module: shaderModule,
 					entryPoint: "vertex_main",
-					buffers: vertexBufferDescriptor
+					buffers: vertexBufferLayout
 				},
 				fragment: {
 					module: shaderModule,
@@ -159,8 +188,9 @@ export class GpuEngine {
 			this.#pipelines.set("main", {
 				pipeline,
 				bindGroupLayouts: new Map([
-					["uniforms", pipeline.getBindGroupLayout(0)],
-					["textures", pipeline.getBindGroupLayout(1)]
+					["scene", pipeline.getBindGroupLayout(0)],
+					["materials", pipeline.getBindGroupLayout(1)],
+					["lights", pipeline.getBindGroupLayout(2)]
 				]),
 				bindMethod: this.setMainBindGroups.bind(this)
 			});
@@ -210,16 +240,16 @@ export class GpuEngine {
 			this.#pipelines.set("background", {
 				pipeline: pipeline,
 				bindGroupLayouts: new Map([
-					["uniforms", pipeline.getBindGroupLayout(0)],
-					["textures", pipeline.getBindGroupLayout(1)]
+					["scene", pipeline.getBindGroupLayout(0)],
+					["materials", pipeline.getBindGroupLayout(1)]
 				]),
 				bindMethod: this.setBackgroundBindGroups.bind(this)
 			});
 		}
 	}
 	initializePipelineMesh(){
-		this.#pipelineMesh.set("main", ["teapot"]);
-		this.#pipelineMesh.set("background", ["background"]);
+		this.#pipelineMesh.set("main", ["teapot", "floor"]);
+		//this.#pipelineMesh.set("background", ["background"]);
 	}
 	start() {
 		this.#isRunning = true;
@@ -236,91 +266,168 @@ export class GpuEngine {
 		});
 	}
 
-	//The offsets here are auto but to large, optimize perhaps with manual layouts
-	setMainBindGroups(passEncoder, bindGroupLayouts, camera, mesh){
-		this.setMainUniformBindGroup(passEncoder, bindGroupLayouts, camera, mesh);
-		this.setMainTextureBindGroup(passEncoder, bindGroupLayouts);
+	setMainBindGroups(passEncoder, bindGroupLayouts, camera, mesh, lights){
+		this.setMainSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh);
+		this.setMainMaterialBindGroup(passEncoder, bindGroupLayouts, mesh);
+		this.setMainLightBindGroup(passEncoder, bindGroupLayouts, lights);
 	}
-	setMainUniformBindGroup(passEncoder, bindGroupLayouts, camera, mesh){
-		const viewMatrix = camera.getViewMatrix();
-		const projectionMatrix = camera.getProjectionMatrix();
-		const modelMatrix = mesh.getModelMatrix();
-		const normalMatrix = getTranspose(getInverse(trimMatrix(multiplyMatrix(modelMatrix, [4, 4], viewMatrix, [4, 4]), [4, 4], [3, 3]), [3, 3]), [3, 3]);
-		const cameraPosition = camera.getPosition();
+	setMainSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh){
+		const scene = {
+			viewMatrix: camera.getViewMatrix(),
+			projectionMatrix: camera.getProjectionMatrix(),
+			modelMatrix: getTranspose(mesh.getModelMatrix(), [4, 4]), //change to col major?
+			normalMatrix: getTranspose(
+				getInverse(
+					trimMatrix(
+						//mesh.getModelMatrix(),
+						new Float32Array([1, 0, 0, 0,   0, 1, 0, 0,   0, 0, 1, 0,  0, 0, 0, 1]),
+						[4, 4], 
+						[3, 3]
+					), 
+					[3, 3]
+				), 
+				[3, 3]),
+			cameraPosition: camera.getPosition()
+		};
 
-		const alignment = getAlignments([
-			"mat4x4f32",
-			"mat4x4f32",
-			"mat4x4f32",
-			"mat3x3f32",
-			"vec3f32"
+		const sceneData = packStruct(scene, [
+			["viewMatrix", "mat4x4f32"],
+			["projectionMatrix", "mat4x4f32"],
+			["modelMatrix", "mat4x4f32"],
+			["normalMatrix", "mat3x3f32"],
+			["cameraPosition", "vec3f32"]
 		]);
 
-		const bufferSize = alignment.totalSize;
-
-		const uniformBuffer = this.#device.createBuffer({
-			size: bufferSize,
+		const sceneBuffer = this.#device.createBuffer({
+			size: sceneData.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-			label: "main-uniform-buffer"
+			label: "main-scene-buffer"
 		});
-		const uniformData = new Float32Array(bufferSize / 4);
-		uniformData.set(viewMatrix, alignment.offsets[0] / 4);
-		uniformData.set(projectionMatrix, alignment.offsets[1] / 4),
-		uniformData.set(modelMatrix, alignment.offsets[2] / 4);
-		uniformData.set(normalMatrix, alignment.offsets[3] / 4);
-		uniformData.set(cameraPosition, alignment.offsets[4] / 4);
 
-		this.#device.queue.writeBuffer(uniformBuffer, 0, uniformData);
+		this.#device.queue.writeBuffer(sceneBuffer, 0, sceneData);
 
-		const uniformBindGroup = this.#device.createBindGroup({
-			label: "main-uniform-bind-group",
-			layout: bindGroupLayouts.get("uniforms"),
+		const sceneBindGroup = this.#device.createBindGroup({
+			label: "main-scene-bind-group",
+			layout: bindGroupLayouts.get("scene"),
 			entries: [
 				{
 					binding: 0,
 					resource: {
-						buffer: uniformBuffer,
+						buffer: sceneBuffer,
 						offset: 0,
-						size: bufferSize
+						size: sceneData.byteLength
 					}
 				}
 			]
 		});
 
-		passEncoder.setBindGroup(0, uniformBindGroup);
+		passEncoder.setBindGroup(0, sceneBindGroup);
 	}
-	setMainTextureBindGroup(passEncoder, bindGroupLayouts){
-		const textureBindGroup = this.#device.createBindGroup({
-			layout: bindGroupLayouts.get("textures"),
+	setMainMaterialBindGroup(passEncoder, bindGroupLayouts, mesh){
+		const material = this.#materials.get(mesh.material);
+
+		const specular = {
+			useSpecularMap: material.useSpecularMap ? 1 : 0, //0 => constant, 1 => map
+			glossColor: material.glossColor
+		}
+		const specularData = packStruct(specular, [
+			["useSpecularMap", "u32"],
+			["glossColor", "vec4f32"]
+		]);
+
+		const specularBuffer = this.#device.createBuffer({
+			size: specularData.byteLength,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+			label: "main-specular-buffer"
+		});
+
+		this.#device.queue.writeBuffer(specularBuffer, 0, specularData);
+
+		const materialBindGroup = this.#device.createBindGroup({
+			layout: bindGroupLayouts.get("materials"),
 			entries: [
-				{ binding: 0, resource: this.#samplers.get("main") },
-				{ binding: 1, resource: this.#textures.get("earth").createView() },
+				{ binding: 0, resource: this.#samplers.get(material.textureSampler) },
+				{ binding: 1, resource: this.#textures.get(material.texture).createView() },
+				{ 
+					binding: 2, 
+					resource: {
+						buffer: specularBuffer,
+						offset: 0,
+						size: specularData.byteLength
+					}
+				},
+				{ binding: 3, resource: this.#samplers.get(material.specularSampler) },
+				{ binding: 4, resource: this.#textures.get(material.specularMap).createView()}
 			]
 		});
-		passEncoder.setBindGroup(1, textureBindGroup);
+		passEncoder.setBindGroup(1, materialBindGroup);
 	}
-	setBackgroundBindGroups(passEncoder, bindGroupLayouts, camera, mesh){
-		this.setBackgroundUniformBindGroup(passEncoder, bindGroupLayouts, camera, mesh);
-		this.setBackgroundTextureBindGroup(passEncoder, bindGroupLayouts);
-	}
-	setBackgroundUniformBindGroup(passEncoder, bindGroupLayouts, camera, mesh){
-		const inverseViewMatrix = getInverse(camera.getViewMatrix(), [4,4]);
+	setMainLightBindGroup(passEncoder, bindGroupLayouts, lights){
+		const lightData = packLights(lights.values().toArray());
 
-		const uniformBuffer = this.#device.createBuffer({
-			size: inverseViewMatrix.byteLength,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-			label: "background-uniform-buffer"
+		const bufferSize = lightData.byteLength;
+
+		const lightBuffer = this.#device.createBuffer({
+			size: bufferSize,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
+			label: "main-light-buffer"
 		});
-		this.#device.queue.writeBuffer(uniformBuffer, 0, inverseViewMatrix);
+		this.#device.queue.writeBuffer(lightBuffer, 0, lightData);
 
-		const uniformBindGroup = this.#device.createBindGroup({
-			label: "background-uniform-bind-group",
-			layout: bindGroupLayouts.get("uniforms"),
+		const lightCountBuffer = this.#device.createBuffer({
+			size: 4,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+			label: "main-light-count-buffer"
+		});
+		this.#device.queue.writeBuffer(lightCountBuffer, 0, new Int32Array([lights.size]));
+
+		const lightBindGroup = this.#device.createBindGroup({
+			label: "main-light-bind-group",
+			layout: bindGroupLayouts.get("lights"),
 			entries: [
 				{
 					binding: 0,
 					resource: {
-						buffer: uniformBuffer,
+						buffer: lightBuffer,
+						offset: 0,
+						size: bufferSize
+					}
+				},
+				{
+					binding: 1,
+					resource: {
+						buffer: lightCountBuffer,
+						offset: 0,
+						size: 4
+					}
+				}
+			]
+		});
+
+		passEncoder.setBindGroup(2, lightBindGroup);
+	}
+	setBackgroundBindGroups(passEncoder, bindGroupLayouts, camera, mesh){
+		this.setBackgroundSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh);
+		this.setBackgroundTextureBindGroup(passEncoder, bindGroupLayouts);
+	}
+	setBackgroundUSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh){
+		const inverseViewMatrix = getInverse(camera.getViewMatrix(), [4,4]);
+
+		const sceneBuffer = this.#device.createBuffer({
+			size: inverseViewMatrix.byteLength,
+			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+			label: "background-scene-buffer"
+		});
+		this.#device.queue.writeBuffer(sceneBuffer, 0, inverseViewMatrix);
+
+		const sceneBindGroup = this.#device.createBindGroup({
+			label: "background-scene-bind-group",
+			layout: bindGroupLayouts.get("scene"),
+			entries: [
+				{
+					binding: 0,
+					resource: {
+						buffer: sceneBuffer,
 						offset: 0,
 						size: inverseViewMatrix.byteLength
 					}
@@ -328,11 +435,11 @@ export class GpuEngine {
 			]
 		});
 
-		passEncoder.setBindGroup(0, uniformBindGroup);
+		passEncoder.setBindGroup(0, sceneBindGroup);
 	}
 	setBackgroundTextureBindGroup(passEncoder, bindGroupLayouts){
 		const textureBindGroup = this.#device.createBindGroup({
-			layout: bindGroupLayouts.get("textures"),
+			layout: bindGroupLayouts.get("material"),
 			entries: [
 				{ binding: 0, resource: this.#samplers.get("main") },
 				{ binding: 1, resource: this.#textures.get("space").createView({ dimension: "cube" }) },
@@ -374,9 +481,9 @@ export class GpuEngine {
 			passEncoder.setPipeline(pipelineContainer.pipeline);
 
 			for(const meshName of meshNames){
-				const meshContainer = this.#meshes.get(meshName);
+				const meshContainer = this.#meshContainers.get(meshName);
 
-				pipelineContainer.bindMethod(passEncoder, pipelineContainer.bindGroupLayouts, camera, meshContainer.mesh);
+				pipelineContainer.bindMethod(passEncoder, pipelineContainer.bindGroupLayouts, camera, meshContainer.mesh, this.#lights);
 				passEncoder.setVertexBuffer(0, meshContainer.vertexBuffer);
 				passEncoder.setIndexBuffer(meshContainer.indexBuffer, "uint16");
 				passEncoder.drawIndexed(meshContainer.mesh.indices.length);

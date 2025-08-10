@@ -65,15 +65,15 @@ export function loadObj(txt, options = {}) {
 	if(faceCombos.length === 0){
 		return {
 			positions: positions.flat(Infinity),
-			uvs: uvs.flat(Infinity),
-			normals: normals.flat(Infinity),
-			indices,
-			colors: colors.flat(Infinity),
-			length: positions.length,
 			positionSize,
-			uvSize,
+			colors: colors.flat(Infinity),
 			colorSize,
+			uvs: uvs.flat(Infinity),
+			uvSize,
+			normals: normals.flat(Infinity),
 			normalSize,
+			indices,
+			vertexLength: positions.length,
 		};
 	}
 
@@ -122,14 +122,14 @@ export function loadObj(txt, options = {}) {
 
 	return {
 		positions: comboPositions.flat(Infinity),
-		uvs: comboUvs.flat(Infinity),
-		normals: comboNormals.flat(Infinity),
-		indices: comboIndices.flat(Infinity),
-		colors: [],
-		length: comboPositions.length,
 		positionSize,
-		uvSize,
+		colors: [],
 		colorSize: 0,
-		normalSize
+		uvs: comboUvs.flat(Infinity),
+		uvSize,
+		normals: comboNormals.flat(Infinity),
+		normalSize,
+		indices: comboIndices.flat(Infinity),
+		vertexLength: comboPositions.length,
 	};
 }
