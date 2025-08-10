@@ -1,6 +1,6 @@
 # Geo
 
-A WebGPU (a possibly others) 3D engine.
+A WebGPU (and possibly others) 3D engine.
 
 ### Running
 
