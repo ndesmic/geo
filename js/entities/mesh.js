@@ -1,6 +1,5 @@
 import { multiplyMatrix, getIdentityMatrix, getTranslationMatrix, getScaleMatrix, getRotationXMatrix, getRotationYMatrix, getRotationZMatrix, getTranspose, multiplyMatrixVector, addVector, divideVector, subtractVector, getInverse, trimMatrix, normalizeVector } from "../utilities/vector.js";
 import { chunk } from "../utilities/iterator-utils.js";
-import { inverseLerp } from "../utilities/math-helpers.js";
 
 export class Mesh {
 	#positions;
@@ -279,6 +278,42 @@ export class Mesh {
 			}
 		}
 
+		return this;
+	}
+	resizeUvs(uvSize){
+		if(this.uvSize === uvSize) return;
+
+		const newUvs = new Float32Array(this.vertexLength * uvSize);
+		const uvs = chunk(this.uvs, this.uvSize).toArray();
+		if(this.uvSize > uvSize){ //shrink
+			for(let i = 0; i < this.vertexLength; i++){
+				newUvs.set(uvs[i].slice(0, uvSize), i * uvSize);
+			}
+		} else {
+			for (let i = 0; i < this.vertexLength; i++) {
+				newUvs.set(uvs[i], i * uvSize);
+			}
+		}
+		this.uvs = newUvs;
+		this.uvSize = uvSize;
+		return this;
+	}
+	resizePositions(positionSize) {
+		if (this.positionSize === positionSize) return;
+
+		const newPositions = new Float32Array(this.vertexLength * positionSize);
+		const positions = chunk(this.positions, this.positionSize).toArray();
+		if (this.positionSize > positionSize) { //shrink
+			for (let i = 0; i < this.vertexLength; i++) {
+				newPositions.set(positions[i].slice(0, positionSize), i * positionSize);
+			}
+		} else {
+			for (let i = 0; i < this.vertexLength; i++) {
+				newPositions.set(positions[i], i * positionSize);
+			}
+		}
+		this.positions = newPositions;
+		this.positionSize = positionSize;
 		return this;
 	}
 }

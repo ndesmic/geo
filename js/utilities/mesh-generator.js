@@ -14,14 +14,14 @@ import { sphericalToCartesian, inverseLerp, TWO_PI } from "./math-helpers.js";
 export function uvSphere(density, { uvOffset } = {}){
 	const radiansPerUnit = Math.PI / density;
 	const pointsPerRing = density * 2;
-	const totalVertices = ((density + 1) * (pointsPerRing + 1)) - 2; //poles don't need UV overlap vertex
+	const vertexLength = ((density + 1) * (pointsPerRing + 1)) - 2; //poles don't need UV overlap vertex
 	const uOffset = uvOffset?.u ?? 0;
 	const vOffset = uvOffset?.y ?? 0;
 
 	//positions
-	const positions = new Float32Array(totalVertices * 3);
-	const uvs = new Float32Array(totalVertices * 2);
-	const normals = new Float32Array(totalVertices * 3);
+	const positions = new Float32Array(vertexLength * 3);
+	const uvs = new Float32Array(vertexLength * 2);
+	const normals = new Float32Array(vertexLength * 3);
 
 	{
 		let positionBufferIndex = 0;
@@ -99,11 +99,13 @@ export function uvSphere(density, { uvOffset } = {}){
 
 	return {
 		positions,
-		positionStride: 3,
+		positionSize: 3,
 		uvs,
+		uvSize: 2,
 		normals,
+		normalSize: 3,
 		indices,
-		length: totalVertices
+		vertexLength
 	};
 }
 
@@ -119,21 +121,23 @@ export function quad(){
 			1.0, 1.0, 0.0,
 			-1.0, 1.0, 0.0,
 		]),
-		positionStride: 3,
+		positionSize: 3,
 		uvs: new Float32Array([
 			0.0, 1.0,
 			1.0, 1.0,
 			1.0, 0.0,
 			0.0, 0.0,
 		]),
+		uvSize: 2,
 		normals: new Float32Array([
 			0, 0, -1,
 			0, 0, -1,
 			0, 0, -1,
 			0, 0, -1
 		]),
+		normalSize: 3,
 		indices: [0,1,2,0,2,3],
-		length: 4
+		vertexLength: 4
 	}
 }
 
@@ -148,13 +152,20 @@ export function screenTri(){
 			3.0, -1.0,
 			-1.0, 3.0
 		]),
+		positionSize: 2,
 		uvs: new Float32Array([
 			0.0, -1.0,
 			3.0, 1.0,
 			0.0, 3.0,
 		]),
+		uvSize: 2,
+		normals: new Float32Array([
+			0, 0, -1,
+			0, 0, -1,
+			0, 0, -1
+		]),
 		indices: [0,1,2],
-		length: 3
+		vertexLength: 3
 	}
 }
 

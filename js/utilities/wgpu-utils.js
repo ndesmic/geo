@@ -5,7 +5,7 @@ import { Mesh } from "../entities/mesh.js";
 /**
  * Loads an image url, uploads to GPU and returns texture ref.
  * Cubemaps defined like [+X, -X, +Y, -Y, +Z, -Z]
- * @param {GPUDevicee} device 
+ * @param {GPUDevice} device 
  * @param {string | string[]} urlOrUrls 
  * @param {*} options 
  */
@@ -46,6 +46,107 @@ export async function uploadTexture(device, urlOrUrls, options = {}) {
 
 	return texture;
 }
+
+/**
+ * Loads a single channel from an image (rgba or luminance="l")
+ * @typedef {"l" | "r" | "g" | "b" | "a"} Channel
+ * @param {GPUDevice} device 
+ * @param {string} url 
+ * @param {{ channel?: Channel }} options 
+ */
+export async function uploadSingleChannelTexture(device, url, options){
+	const channel = options.channel ?? "l";
+
+	const image = await loadImage(url);
+
+	const canvas = document.createElement('canvas');
+	canvas.width = image.width;
+	canvas.height = image.height;
+	const ctx = canvas.getContext('2d');
+	ctx.drawImage(image, 0, 0);
+
+	const imageData = ctx.getImageData(0, 0, image.width, image.height);
+	const singleChannelData = new Uint8Array(image.width * image.height);
+	switch (channel) {
+		case "l": {
+			for (let i = 0; i < grayData.length; i++) {
+				const r = imageData.data[i * 4];
+				const g = imageData.data[i * 4 + 1];
+				const b = imageData.data[i * 4 + 2];
+				singleChannelData[i] = Math.round((r + g + b) / 3);
+			}
+			break;
+		}
+		case "r": {
+			for (let i = 0; i < grayData.length; i++) {
+				const r = imageData.data[i * 4];
+				singleChannelData[i] = r;
+			}
+			break;
+		}
+		case "g": {
+			for (let i = 0; i < grayData.length; i++) {
+				const g = imageData.data[i * 4 + 1];
+				singleChannelData[i] = g;
+			}
+			break;
+		}
+		case "b": {
+			for (let i = 0; i < grayData.length; i++) {
+				const b = imageData.data[i * 4 + 2];
+				singleChannelData[i] = b;
+			}
+			break;
+		}
+		case "a": {
+			for (let i = 0; i < grayData.length; i++) {
+				const a = imageData.data[i * 4 + 3];
+				singleChannelData[i] = a;
+			}
+			break;
+		}
+	}
+
+	const texture = device.createTexture({
+		size: [image.width, image.height],
+		format: 'r8unorm',
+		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT,
+	});
+
+
+	device.queue.writeTexture(
+		{ texture },
+		singleChannelData,
+		{ bytesPerRow: 1 },
+		{ width: image.width, height: image.height, depthOrArrayLayers: 1 }
+	);
+}
+
+/**
+ * Creates a 1x1 texture of a color
+ * @param {GPUDevice} device 
+ * @returns 
+ */
+export function createColorTexture(device, options = {}) {
+	const texture = device.createTexture({
+		label: options.label,
+		size: [1, 1],
+		format: 'rgba8unorm',
+		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
+	});
+
+	const texel = options.color ?? new Uint8Array([255, 255, 255, 255]);
+
+	device.queue.writeTexture(
+		{ texture },
+		texel,
+		{ bytesPerRow: 4 },
+		{ width: 1, height: 1, depthOrArrayLayers: 1 }
+	);
+
+	return texture;
+}
+
 
 /**
  * 

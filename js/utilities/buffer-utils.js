@@ -155,13 +155,13 @@ export function packStruct(data, schema, minSize, buffer, offset = 0){
 				dataView.setFloat32(offset + offsets[i] + 4, value[1], true);
 				dataView.setFloat32(offset + offsets[i] + 8, value[2], true);
 
-				dataView.setFloat32(offset + offsets[i] + 12, value[3], true);
-				dataView.setFloat32(offset + offsets[i] + 16, value[4], true);
-				dataView.setFloat32(offset + offsets[i] + 20, value[5], true);
+				dataView.setFloat32(offset + offsets[i] + 16, value[3], true);
+				dataView.setFloat32(offset + offsets[i] + 20, value[4], true);
+				dataView.setFloat32(offset + offsets[i] + 24, value[5], true);
 
-				dataView.setFloat32(offset + offsets[i] + 24, value[6], true);
-				dataView.setFloat32(offset + offsets[i] + 28, value[7], true);
-				dataView.setFloat32(offset + offsets[i] + 32, value[8], true);
+				dataView.setFloat32(offset + offsets[i] + 32, value[6], true);
+				dataView.setFloat32(offset + offsets[i] + 36, value[7], true);
+				dataView.setFloat32(offset + offsets[i] + 40, value[8], true);
 				break;
 			}
 			case "mat4x4f32": {
@@ -172,15 +172,15 @@ export function packStruct(data, schema, minSize, buffer, offset = 0){
 				dataView.setFloat32(offset + offsets[i] + 16, value[4], true);
 				dataView.setFloat32(offset + offsets[i] + 20, value[5], true);
 				dataView.setFloat32(offset + offsets[i] + 24, value[6], true);
-				dataView.setFloat32(offset + offsets[i] + 32, value[7], true);
-				dataView.setFloat32(offset + offsets[i] + 36, value[8], true);
-				dataView.setFloat32(offset + offsets[i] + 40, value[9], true);
-				dataView.setFloat32(offset + offsets[i] + 44, value[10], true);
-				dataView.setFloat32(offset + offsets[i] + 48, value[11], true);
-				dataView.setFloat32(offset + offsets[i] + 52, value[12], true);
-				dataView.setFloat32(offset + offsets[i] + 56, value[13], true);
-				dataView.setFloat32(offset + offsets[i] + 60, value[14], true);
-				dataView.setFloat32(offset + offsets[i] + 64, value[15], true);
+				dataView.setFloat32(offset + offsets[i] + 28, value[7], true);
+				dataView.setFloat32(offset + offsets[i] + 32, value[8], true);
+				dataView.setFloat32(offset + offsets[i] + 36, value[9], true);
+				dataView.setFloat32(offset + offsets[i] + 40, value[10], true);
+				dataView.setFloat32(offset + offsets[i] + 44, value[11], true);
+				dataView.setFloat32(offset + offsets[i] + 48, value[12], true);
+				dataView.setFloat32(offset + offsets[i] + 52, value[13], true);
+				dataView.setFloat32(offset + offsets[i] + 56, value[14], true);
+				dataView.setFloat32(offset + offsets[i] + 60, value[15], true);
 				break;
 			}
 			default: {

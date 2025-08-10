@@ -140,6 +140,26 @@ describe("buffer-utils", () => {
 				0,
 			]));
 		});
+		it("should pack mat3x3f32", () => {
+			const data = {
+				val: new Float32Array([
+					1,2,3,
+					4,5,6,
+					7,8,9
+				])
+			};
+			const schema = [
+				["val", "mat3x3f32"]
+			];
+			const buffer = packStruct(data, schema);
+			const view = new Float32Array(buffer);
+
+			expect(view).toEqual(new Float32Array([
+				1,2,3,0,
+				4,5,6,0,
+				7,8,9,0
+			]));
+		});
 	});
 	describe("packArray", () => {
 		it("should pack array", () => {

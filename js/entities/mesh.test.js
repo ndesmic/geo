@@ -175,4 +175,96 @@ describe("Mesh", () => {
 			]));
 		});
 	});
+	describe("resizeUvs", () => {
+		it("should resize to smaller size", () => {
+			const mesh = new Mesh({
+				uvs: [
+					0, 0, 0,
+					0, 1, 0,
+					1, 0, 0,
+					1, 1, 0
+				],
+				uvSize: 3,
+				vertexLength: 4
+			});
+
+			mesh.resizeUvs(2);
+
+			expect(mesh.uvs).toEqual(new Float32Array([
+				0, 0,
+				0, 1,
+				1, 0,
+				1, 1
+			]));
+			expect(mesh.uvSize).toEqual(2);
+		});
+		it("should resize to larger size", () => {
+			const mesh = new Mesh({
+				uvs: [
+					0, 0,
+					0, 1,
+					1, 0,
+					1, 1
+				],
+				uvSize: 2,
+				vertexLength: 4
+			});
+
+			mesh.resizeUvs(3);
+
+			expect(mesh.uvs).toEqual(new Float32Array([
+				0, 0, 0,
+				0, 1, 0,
+				1, 0, 0,
+				1, 1, 0
+			]));
+			expect(mesh.uvSize).toEqual(3);
+		});
+	});
+	describe("resizePositions", () => {
+		it("should resize to smaller size", () => {
+			const mesh = new Mesh({
+				positions: [
+					0, 0, 0,
+					0, 1, 0,
+					1, 0, 0,
+					1, 1, 0
+				],
+				positionSize: 3,
+				vertexLength: 4
+			});
+
+			mesh.resizePositions(2);
+
+			expect(mesh.positions).toEqual(new Float32Array([
+				0, 0,
+				0, 1,
+				1, 0,
+				1, 1
+			]));
+			expect(mesh.positionSize).toEqual(2);
+		});
+		it("should resize to larger size", () => {
+			const mesh = new Mesh({
+				positions: [
+					0, 0,
+					0, 1,
+					1, 0,
+					1, 1
+				],
+				positionSize: 2,
+				vertexLength: 4
+			});
+
+			mesh.resizePositions(3);
+
+			expect(mesh.positions).toEqual(new Float32Array([
+				0, 0, 0,
+				0, 1, 0,
+				1, 0, 0,
+				1, 1, 0
+			]));
+			expect(mesh.positionSize).toEqual(3);
+		});
+	});
 });
