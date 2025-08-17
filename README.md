@@ -2,13 +2,20 @@
 
 A WebGPU (a possibly others) 3D engine.
 
-### Running
+### How to Run
+
+Any web server can be used to serve the code however Deno is used for tasks and testing.
 
 `deno task start`
 
-### Testing
+#### Testing
 
 `deno test`
+
+### Features
+
+- Partial support for .obj files (no materials)
+- PBR rendering
 
 ### Controls
 

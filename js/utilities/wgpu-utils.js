@@ -124,7 +124,8 @@ export async function uploadSingleChannelTexture(device, url, options){
 
 /**
  * Creates a 1x1 texture of a color
- * @param {GPUDevice} device 
+ * @param {GPUDevice} device
+ * @param {{ label?: string, color?: [number, number, number, number] }}
  * @returns 
  */
 export function createColorTexture(device, options = {}) {
@@ -135,7 +136,9 @@ export function createColorTexture(device, options = {}) {
 		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 	});
 
-	const texel = options.color ?? new Uint8Array([255, 255, 255, 255]);
+	const texel = options.color
+		? new Uint8Array(options.color)
+		: new Uint8Array([255, 255, 255, 255]);
 
 	device.queue.writeTexture(
 		{ texture },

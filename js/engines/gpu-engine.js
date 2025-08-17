@@ -50,7 +50,7 @@ export class GpuEngine {
 	}
 	initializeCameras(){
 		this.#cameras.set("main", new Camera({
-			position: [0, 0, -2],
+			position: [0.5, 0.2, -0.5],
 			screenHeight: this.#canvas.height,
 			screenWidth: this.#canvas.width,
 			fieldOfView: 90,
@@ -67,7 +67,7 @@ export class GpuEngine {
 				.resizeUvs(2)
 				//.rotate({ x : -Math.PI / 2 })
 				//.bakeTransforms()
-				.setMaterial("marble");
+				.setMaterial("gold");
 			const { vertexBuffer, indexBuffer } = await uploadMesh(this.#device, mesh, { label: "teapot" });
 			this.#meshContainers.set("teapot", { vertexBuffer, indexBuffer, mesh });
 		}
@@ -90,9 +90,10 @@ export class GpuEngine {
 	}
 	initializeLights(){
 		this.#lights.set("light", new Light({
-			type: "point",
-			position: sphericalToCartesian([ Math.PI / 4, 0, 2]),
-			color: [1,1,1,1]
+			type: "directional",
+			//position: sphericalToCartesian([ Math.PI / 4, 0, 2]),
+			color: [2.0,2.0,2.0,1],
+			direction: [0, -1, 0] 
 		}));
 		// this.#lights.set("light2", new Light({
 		// 	type: "point",
@@ -105,7 +106,7 @@ export class GpuEngine {
 		this.#textures.set("marble-roughness", await uploadTexture(this.#device, "./img/marble-white/marble-white-roughness.jpg"));
 		this.#textures.set("red-fabric", await uploadTexture(this.#device, "./img/red-fabric/red-fabric-base.jpg"));
 		this.#textures.set("red-fabric-roughness", await uploadTexture(this.#device, "./img/red-fabric/red-fabric-roughness.jpg"));
-
+		this.#textures.set("gold", createColorTexture(this.#device, { color: [0, 0, 0, 1], label: "gold-texture" }));
 		// this.#textures.set("space", await uploadTexture(this.#device, [
 		// 	"./img/space_right.png",
 		// 	"./img/space_left.png",
@@ -140,22 +141,27 @@ export class GpuEngine {
 	initializeMaterials(){
 		this.#materials.set("marble", new Material({
 			texture: "marble",
-			useSpecularMap: false,
-			glossColor: [4,4,4,1],
+			useSpecularMap: true,
 			specularMap: "marble-roughness"
 		}));
 		this.#materials.set("red-fabric", new Material({
 			texture: "red-fabric",
-			useSpecularMap: false,
-			glossColor: [0,0,0,1],
+			useSpecularMap: true,
 			specularMap: "red-fabric-roughness"
 		}));
+		this.#materials.set("gold", new Material({
+			texture: "gold",
+			useSpecularMap: false,
+			roughness: 0.2,
+			metalness: 1,
+			baseReflectance: [1.059, 0.773, 0.307]
+		}))
 	}
 	async initializePipelines(){
 		{
 			const vertexBufferLayout = getVertexBufferLayout(this.#meshContainers.get("teapot").mesh);
 
-			const shaderModule = await uploadShader(this.#device, "./shaders/textured-lit-specular.wgsl");
+			const shaderModule = await uploadShader(this.#device, "./shaders/cook-torrence-pbr.wgsl");
 
 			const pipelineDescriptor = {
 				label: "main-pipeline",
@@ -326,22 +332,27 @@ export class GpuEngine {
 	setMainMaterialBindGroup(passEncoder, bindGroupLayouts, mesh){
 		const material = this.#materials.get(mesh.material);
 
-		const specular = {
+		//TODO: pack the class directly
+		const materialModel = {
 			useSpecularMap: material.useSpecularMap ? 1 : 0, //0 => constant, 1 => map
-			glossColor: material.glossColor
-		}
-		const specularData = packStruct(specular, [
+			roughness: material.roughness,
+			metalness: material.metalness,
+			baseReflectance: material.baseReflectance
+		};
+		const materialData = packStruct(materialModel, [
 			["useSpecularMap", "u32"],
-			["glossColor", "vec4f32"]
+			["roughness", "f32"],
+			["metalness", "f32"],
+			["baseReflectance", "vec3f32"]
 		]);
 
-		const specularBuffer = this.#device.createBuffer({
-			size: specularData.byteLength,
+		const materialBuffer = this.#device.createBuffer({
+			size: materialData.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
 			label: "main-specular-buffer"
 		});
 
-		this.#device.queue.writeBuffer(specularBuffer, 0, specularData);
+		this.#device.queue.writeBuffer(materialBuffer, 0, materialData);
 
 		const materialBindGroup = this.#device.createBindGroup({
 			layout: bindGroupLayouts.get("materials"),
@@ -351,9 +362,9 @@ export class GpuEngine {
 				{ 
 					binding: 2, 
 					resource: {
-						buffer: specularBuffer,
+						buffer: materialBuffer,
 						offset: 0,
-						size: specularData.byteLength
+						size: materialData.byteLength
 					}
 				},
 				{ binding: 3, resource: this.#samplers.get(material.specularSampler) },
