@@ -2,7 +2,10 @@ export class Material {
 	#useSpecularMap;
 	#specularMap;
 	#specularSampler;
-	#glossColor;
+	#roughness;
+
+	#metalness;
+	#baseReflectance;
 
 	#texture;
 	#textureSampler;
@@ -13,7 +16,11 @@ export class Material {
 		this.useSpecularMap = options.useSpecularMap ?? false;
 		this.specularMap = options.specularMap ?? "dummy";
 		this.specularSampler = options.specularSampler ?? "default";
-		this.glossColor = options.glossColor ?? new Float32Array([0,0,0,1]);
+		this.roughness = options.roughness ?? 0.0;
+
+		this.#metalness = options.metalness ?? 0.0;
+		this.#baseReflectance = options.baseReflectance ?? [0.04, 0.04, 0.04];
+
 		this.texture = options.texture ?? "dummy";
 		this.textureSampler = options.textureSampler ?? "default";
 	}
@@ -42,15 +49,23 @@ export class Material {
 	get specularSampler(){
 		return this.#specularSampler;
 	}
-	set glossColor(val){
-		if(Array.isArray(val)){
-			this.#glossColor = new Float32Array(val);
-		} else {
-			this.#glossColor = val;
-		}
+	set roughness(val){
+		this.#roughness = val;
 	}
-	get glossColor(){
-		return this.#glossColor;
+	get roughness(){
+		return this.#roughness;
+	}
+	set metalness(val){
+		this.#metalness = val;
+	}
+	get metalness(){
+		return this.#metalness;
+	}
+	set baseReflectance(val){
+		this.#baseReflectance = new Float32Array(val);
+	}
+	get baseReflectance(){
+		return this.#baseReflectance;
 	}
 	set texture(val){
 		this.#texture = val;
