@@ -9,15 +9,17 @@ export class Light {
 	#direction;
 	#color;
 
-	constructor(light){
+	#leftr
+
+	constructor(light) {
 		this.#type = light.type ?? "point";
 		this.#position = light.position ?? [0, 0, 0, 0];
 		this.#direction = light.direction ?? [0, 0, 0, 0];
-		this.#color = light.color ?? [1,1,1,1];
+		this.#color = light.color ?? [1, 1, 1, 1];
 	}
 
-	static getLightInt(lightType){
-		switch(lightType){
+	static getLightInt(lightType) {
+		switch (lightType) {
 			case "point": return 0;
 			case "directional": return 1;
 			case "spot": return 2;
@@ -25,34 +27,34 @@ export class Light {
 		}
 	}
 
-	set type(val){
+	set type(val) {
 		this.#type = new Float32Array(val);
 	}
-	get type(){
+	get type() {
 		return this.#type;
 	}
-	get typeInt(){
+	get typeInt() {
 		return Light.getLightInt(this.#type);
 	}
 
-	set position(val){
+	set position(val) {
 		this.#position = new Float32Array(val);
 	}
-	get position(){
+	get position() {
 		return this.#position;
 	}
 
-	set direction(val){
+	set direction(val) {
 		this.#direction = new Float32Array(val);
 	}
-	get direction(){
+	get direction() {
 		return this.#direction;
 	}
 
-	set color(val){
+	set color(val) {
 		this.#color = new Float32Array(val);
 	}
-	get color(){
+	get color() {
 		return this.#color;
 	}
 }

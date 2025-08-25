@@ -1,4 +1,4 @@
-import { GpuEngine as Engine } from "../engines/gpu-engine.js";
+import { GpuEngine as Engine } from "../engines/gpu-engine/gpu-engine.js";
 import { DEGREES_PER_RADIAN } from "../utilities/math-helpers.js";
 import { downloadBlob } from "../utilities/data-utils.js";
 
