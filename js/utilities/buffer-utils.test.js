@@ -1,8 +1,7 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { getAlignments, getPaddedSize, packArray, packLight, packMesh, packStruct } from "./buffer-utils.js";
+import { getAlignments, getPaddedSize, packArray, packMesh, packStruct } from "./buffer-utils.js";
 import { Mesh } from "../entities/mesh.js";
-import { Light } from "../entities/light.js";
 
 describe("buffer-utils", () => {
 	describe("packMesh", () => {
@@ -185,35 +184,5 @@ describe("buffer-utils", () => {
 				0
 			]));
 		});
-	});
-	describe("packLight", () => {
-		//0, 16, 32, 48
-		const result = packLight(new Light({
-			type: "directional",
-			position: new Float32Array([1,2,3]),
-			direction: new Float32Array([4,5,6]),
-			color: new Float32Array([16,32,64,128])
-		}));
-
-		const view = new Uint8Array(result);
-
-		expect(view).toEqual(new Uint8Array([
-			1,0,0,0,
-			0,0,0,0,
-			0,0,0,0,
-			0,0,0,0,
-			0,0,128,63,
-			0,0,0,64,
-			0,0,64,64,
-			0,0,0,0,
-			0,0,128,64,
-			0,0,160,64,
-			0,0,192,64,
-			0,0,0,0,
-			0,0,128,65,
-			0,0,0,66,
-			0,0,128,66,
-			0,0,0,67
-		]));
 	});
 });

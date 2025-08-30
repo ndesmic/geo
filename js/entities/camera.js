@@ -1,5 +1,5 @@
 import { getOrthoMatrix, getProjectionMatrix, getLookAtMatrix, UP, subtractVector } from "../utilities/vector.js";
-import { cartesianToSpherical, sphericalToCartesian, clamp } from "../utilities/math-helpers.js";
+import { cartesianToSpherical, sphericalToCartesian } from "../utilities/math-helpers.js";
 
 export class Camera {
 	#position = new Float32Array([0,0,-1]);

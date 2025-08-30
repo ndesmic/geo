@@ -14,14 +14,14 @@ export class Material {
 	constructor(options){
 		this.name = options.name;
 		this.useSpecularMap = options.useSpecularMap ?? false;
-		this.specularMap = options.specularMap ?? "dummy";
+		this.specularMap = options.specularMap ?? "placeholder";
 		this.specularSampler = options.specularSampler ?? "default";
 		this.roughness = options.roughness ?? 0.0;
 
 		this.#metalness = options.metalness ?? 0.0;
 		this.#baseReflectance = options.baseReflectance ?? [0.04, 0.04, 0.04];
 
-		this.texture = options.texture ?? "dummy";
+		this.texture = options.texture ?? "placeholder";
 		this.textureSampler = options.textureSampler ?? "default";
 	}
 

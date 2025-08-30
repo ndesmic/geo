@@ -52,6 +52,18 @@ export function getIdentityMatrix() {
 	]);
 }
 
+export function getTotalSize(shape){
+	let size = 1;
+	for(let i = 0; i < shape.length; i++){
+		size *= shape[i];
+	}
+	return size;
+}
+
+export function getEmptyMatrix(shape){
+	return new Float32Array(getTotalSize(shape));
+}
+
 /**
  * 
  * @param {Float32Array} vector 
@@ -160,6 +172,7 @@ export function reflectVector(vec, normal) {
 
 export const UP = [0, 1, 0];
 export const FORWARD = [0, 0, 1];
+export const BACKWARD = [0, 0, -1];
 export const RIGHT = [1, 0, 0];
 
 // polygons
@@ -324,10 +337,16 @@ export function getPointAtMatrix(position, target, up) {
 	];
 }
 
-export function getLookAtMatrix(position, target, up) {
+export function getLookAtMatrix(position, target, up = UP) {
 	const forward = normalizeVector(subtractVector(target, position));
-	const newUp = normalizeVector(subtractVector(up, scaleVector(forward, dotVector(up, forward))));
-	const right = crossVector(newUp, forward);
+
+	if(Math.abs(dotVector(forward, up)) > 0.999){
+		up = Math.abs(forward[1]) < 0.999 ? UP : FORWARD;
+	}
+
+	const right = normalizeVector(crossVector(up, forward));
+	const newUp = crossVector(forward, right);
+	
 
 	return new Float32Array([
 		right[0], newUp[0], forward[0], 0,

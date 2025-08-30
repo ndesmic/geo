@@ -1,4 +1,11 @@
-export function setupExtractDepthBuffer(device, context) {
+/**
+ * 
+ * @param {GPUDevice} device 
+ * @param {*} context 
+ * @param {{ shouldGammaScale?: boolean }} options 
+ * @returns 
+ */
+export function setupExtractDepthBuffer(device, context, options = {}) {
 	const vertices = new Float32Array([
 		-1.0, -1.0,
 		3.0, -1.0,
@@ -42,15 +49,23 @@ export function setupExtractDepthBuffer(device, context) {
 				var output : VertexOut;
 				output.frag_position =  vec4(position, 1.0, 1.0);
 				output.clip_position = vec4(position, 1.0, 1.0);
-				output.uv = position.xy * 0.5 + vec2<f32>(0.5, 0.5);
+				output.uv = vec2(position.x * 0.5 + 0.5, 1.0 - (position.y * 0.5 + 0.5));
 				return output;
 			}
 
 			@fragment
 			fn fragment_main(fragData: VertexOut) -> @location(0) vec4<f32> {
 				let depth = textureSample(depthTex, depthSampler, fragData.uv);
-				let gamma_depth = pow(depth, 10.0);
-				return vec4<f32>(gamma_depth, gamma_depth, gamma_depth, 1.0); // grayscale output
+				
+				${options.shouldGammaScale
+					? `
+					let gamma_depth = pow(depth, 10.0);
+					return vec4<f32>(gamma_depth, gamma_depth, gamma_depth, 1.0);
+					`
+					: `
+					return vec4<f32>(depth, depth, depth, 1.0);
+					`
+				}
 			}
 		`
 	});
