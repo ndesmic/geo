@@ -87,27 +87,6 @@ export function packMesh(mesh){
 	return buffer;
 }
 
-const lightSchema = [
-	["typeInt", "u32"],
-	["position", "vec3f32"],
-	["direction", "vec3f32"],
-	["color", "vec4f32"]
-];
-/**
- * 
- * @param {Light} light 
- */
-export function packLight(light){
-	return packStruct(light, lightSchema, 64);
-}
-/**
- * 
- * @param {Light[]} lights 
- */
-export function packLights(lights){
-	return packArray(lights, lightSchema, 64);
-}
-
 /**
  * @typedef {[string,GpuType]} Prop
  * @typedef {Prop[]} Schema
@@ -121,9 +100,18 @@ export function packStruct(data, schema, minSize, buffer, offset = 0){
 
 	for(let i = 0; i < schema.length; i++){
 		const [name, type] = schema[i];
-		const value = data[name];
+		let value;
+		if(typeof(name) === "function"){
+			value = name(data);
+		} else {
+			value = data[name];
+		}
 		//TODO: add other GPU Types
 		switch(type){
+			case "i32": {
+				dataView.setInt32(offset + offsets[i], value, true);
+				break;
+			}
 			case "u32": {
 				dataView.setUint32(offset + offsets[i], value, true);
 				break;

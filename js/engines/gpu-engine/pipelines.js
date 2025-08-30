@@ -23,10 +23,149 @@ export async function getMainPipeline(device) {
 		stepMode: "vertex"
 	}];
 
-	const shaderModule = await uploadShader(device, "./shaders/cook-torrence-pbr.wgsl");
+	const shaderModule = await uploadShader(device, "./shaders/pbr.wgsl");
+
+	const sceneBindGroupLayout = device.createBindGroupLayout({
+		label: "main-scene-bind-group-layout",
+		entries: [
+			{
+				binding: 0,
+				visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+				buffer: {
+					type: "uniform"
+				}
+			}
+		]
+	});
+
+	const materialBindGroupLayout = device.createBindGroupLayout({
+		label: "main-material-bind-group-layout",
+		entries: [
+			{ 
+				binding: 0, 
+				visibility: GPUShaderStage.FRAGMENT,
+				sampler: {
+					type: "filtering"
+				}
+			},
+			{ 
+				binding: 1, 
+				visibility: GPUShaderStage.FRAGMENT,
+				texture: {
+					sampleType: 'float',
+					viewDimension: '2d',
+					multisampled: false
+				}
+			},
+			{
+				binding: 2,
+				visibility: GPUShaderStage.FRAGMENT,
+				buffer: {
+					type: "uniform"
+				}
+			},
+			{
+				binding: 3,
+				visibility: GPUShaderStage.FRAGMENT,
+				sampler: {
+					type: "filtering"
+				}
+			},
+			{
+				binding: 4,
+				visibility: GPUShaderStage.FRAGMENT,
+				texture: {
+					sampleType: 'float',
+					viewDimension: '2d',
+					multisampled: false
+				}
+			}
+		]
+	});
+
+	const lightBindGroupLayout = device.createBindGroupLayout({
+		label: "main-light-bind-group-layout",
+		entries: [
+			{
+				binding: 0,
+				visibility: GPUShaderStage.FRAGMENT,
+				buffer: {
+					type: "read-only-storage"
+				}
+			},
+			{
+				binding: 1,
+				visibility: GPUShaderStage.FRAGMENT,
+				buffer: {
+					type: "uniform"
+				}
+			},
+			{
+				binding: 2,
+				visibility: GPUShaderStage.FRAGMENT,
+				sampler: {
+					type: "comparison"
+				}
+			},
+			{
+				binding: 3,
+				visibility: GPUShaderStage.FRAGMENT,
+				texture: {
+					sampleType: 'depth',
+					viewDimension: '2d',
+					multisampled: false
+				}
+			},
+			{
+				binding: 4,
+				visibility: GPUShaderStage.FRAGMENT,
+				texture: {
+					sampleType: 'depth',
+					viewDimension: '2d',
+					multisampled: false
+				}
+			},
+			{
+				binding: 5,
+				visibility: GPUShaderStage.FRAGMENT,
+				texture: {
+					sampleType: 'depth',
+					viewDimension: '2d',
+					multisampled: false
+				}
+			},
+			{
+				binding: 6,
+				visibility: GPUShaderStage.FRAGMENT,
+				texture: {
+					sampleType: 'depth',
+					viewDimension: '2d',
+					multisampled: false
+				}
+			},
+			{
+				binding: 7,
+				visibility: GPUShaderStage.FRAGMENT,
+				sampler: {
+					type: "non-filtering"
+				}
+			}
+		]
+	});
+
+	const pipelineLayout = device.createPipelineLayout({
+		label: "main-pipeline-layout",
+		bindGroupLayouts: [
+			sceneBindGroupLayout,
+			materialBindGroupLayout,
+			lightBindGroupLayout
+		]
+	});
+
 
 	const pipelineDescriptor = {
 		label: "main-pipeline",
+		layout: pipelineLayout,
 		vertex: {
 			module: shaderModule,
 			entryPoint: "vertex_main",
@@ -48,8 +187,7 @@ export async function getMainPipeline(device) {
 			depthWriteEnabled: true,
 			depthCompare: "less-equal",
 			format: "depth32float"
-		},
-		layout: "auto"
+		}
 	};
 	return device.createRenderPipeline(pipelineDescriptor);
 }
@@ -79,8 +217,29 @@ export async function getShadowMapPipeline(device) {
 
 	const shaderModule = await uploadShader(device, "./shaders/shadow-map.wgsl");
 
+	const sceneBindGroupLayout = device.createBindGroupLayout({
+		label: "main-scene-bind-group-layout",
+		entries: [
+			{
+				binding: 0,
+				visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+				buffer: {
+					type: "uniform"
+				}
+			}
+		]
+	});
+
+	const pipelineLayout = device.createPipelineLayout({
+		label: "main-pipeline-layout",
+		bindGroupLayouts: [
+			sceneBindGroupLayout
+		]
+	});
+
 	const pipelineDescriptor = {
 		label: "shadow-map-pipeline",
+		layout: pipelineLayout,
 		vertex: {
 			module: shaderModule,
 			entryPoint: "vertex_main",
@@ -93,10 +252,11 @@ export async function getShadowMapPipeline(device) {
 		},
 		depthStencil: {
 			depthWriteEnabled: true,
-			depthCompare: "less-equal",
+			depthCompare: "less",
+			depthBias: 1000000,
+			depthBiasSlopeScale: 2.0,
 			format: "depth32float"
 		},
-		layout: "auto"
 	};
 	return device.createRenderPipeline(pipelineDescriptor);
 }

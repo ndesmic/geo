@@ -1,4 +1,5 @@
 const shadow_max = 4;
+const shadow_bias = 0.05;
 struct VertexOut {
 	@builtin(position) frag_position : vec4<f32>,
 	@location(0) world_position: vec4<f32>,
@@ -16,7 +17,11 @@ struct Light {
 	light_type: u32,
 	position: vec3<f32>,
 	direction: vec3<f32>,
-	color: vec4<f32>
+	color: vec4<f32>,
+	projection_matrix: mat4x4<f32>,
+	view_matrix: mat4x4<f32>,
+	has_shadow: u32,
+	shadow_map_index: i32
 }
 struct LightCount {
 	count: u32
@@ -26,10 +31,6 @@ struct Material {
 	roughness: f32,
 	metalness: f32,
 	base_reflectance: vec3<f32>
-}
-struct LightTransform {
-	projection_matrix: mat4x4<f32>,
-	view_matrix: mat4x4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> scene : Scene;
@@ -42,13 +43,12 @@ struct LightTransform {
 
 @group(2) @binding(0) var<storage, read> lights: array<Light>;
 @group(2) @binding(1) var<uniform> light_count: LightCount;
-
-@group(3) @binding(0) var shadow_sampler: sampler_comparison;
-@group(3) @binding(1) var<storage, read> light_transforms: array<LightTransform>;
-@group(3) @binding(2) var shadow_map_0: texture_depth_2d;
-@group(3) @binding(3) var shadow_map_1: texture_depth_2d;
-@group(3) @binding(4) var shadow_map_2: texture_depth_2d;
-@group(3) @binding(5) var shadow_map_3: texture_depth_2d;
+@group(2) @binding(2) var shadow_sampler: sampler_comparison;
+@group(2) @binding(3) var shadow_map_0: texture_depth_2d;
+@group(2) @binding(4) var shadow_map_1: texture_depth_2d;
+@group(2) @binding(5) var shadow_map_2: texture_depth_2d;
+@group(2) @binding(6) var shadow_map_3: texture_depth_2d;
+@group(2) @binding(7) var depth_debug_sampler: sampler;
 
 //schlick
 fn get_fresnel(f0: vec3<f32>, to_view: vec3<f32>, half_vector: vec3<f32>) -> vec3<f32> {
@@ -103,53 +103,28 @@ fn get_bdrf(surface_albedo: vec3<f32>, f0: vec3<f32>, roughness: f32, metalness:
 	return kd * diffuse + specular;
 }
 
-fn get_shadow(world_position: vec4<f32>) -> f32 {
+fn get_shadow(world_position: vec4<f32>, diffuse_factor: f32) -> f32 {
 	var shadow = 1.0;
 	var i = 0;
-	//for(var i = 0; i < shadow_max; i++){
-		let shadow_space = light_transforms[i].projection_matrix * light_transforms[i].view_matrix * world_position;
-		let shadow_projection = shadow_space.xyz / shadow_space.w;
-		let shadow_uv = shadow_projection.xy * 0.5 + vec2<f32>(0.5);
-		let shadow_depth = shadow_projection.z;
-		switch(i){
-			//case 0: { shadow *= textureSampleCompare(shadow_map_0, shadow_sampler, shadow_uv, shadow_depth - 0.001); }
-			//case 1: { shadow *= textureSampleCompare(shadow_map_1, shadow_sampler, shadow_uv, shadow_depth - 0.05); }
-			//case 2: { shadow *= textureSampleCompare(shadow_map_2, shadow_sampler, shadow_uv, shadow_depth - 0.05); }
-			//case 3: { shadow *= textureSampleCompare(shadow_map_3, shadow_sampler, shadow_uv, shadow_depth - 0.05); }
-			default: { 
-				var txt = textureSampleCompare(shadow_map_0, shadow_sampler, shadow_uv, shadow_depth - 0.01);
-				txt = textureSampleCompare(shadow_map_1, shadow_sampler, shadow_uv, shadow_depth - 0.01);
-				txt = textureSampleCompare(shadow_map_2, shadow_sampler, shadow_uv, shadow_depth - 0.01);
-				txt = textureSampleCompare(shadow_map_3, shadow_sampler, shadow_uv, shadow_depth - 0.01);
-			} //shouldn't happen...
+	for(var i: u32 = 0; i < light_count.count; i++){
+		if lights[i].has_shadow == 0 {
+			continue;
 		}
-	//}
+		let shadow_space = lights[i].projection_matrix * lights[i].view_matrix * world_position;
+		let shadow_projection = shadow_space.xyz / shadow_space.w;
+		let shadow_uv = vec2(shadow_projection.x * 0.5 + 0.5, 1.0 - (shadow_projection.y * 0.5 + 0.5));
+		let shadow_depth = shadow_projection.z;
+		let bias = mix(shadow_bias, 0.0, diffuse_factor);
+		//let bias = shadow_bias;
+		switch(lights[i].shadow_map_index){
+			case 0: { shadow *= textureSampleCompare(shadow_map_0, shadow_sampler, shadow_uv, shadow_depth); }
+			case 1: { shadow *= textureSampleCompare(shadow_map_1, shadow_sampler, shadow_uv, shadow_depth); }
+			case 2: { shadow *= textureSampleCompare(shadow_map_2, shadow_sampler, shadow_uv, shadow_depth); }
+			case 3: { shadow *= textureSampleCompare(shadow_map_3, shadow_sampler, shadow_uv, shadow_depth); }
+			default: { } //shouldn't happen...
+		}
+	}
 	return shadow;
-}
-
-fn get_shadow_x(world_position: vec4<f32>) -> vec4<f32> {
-	var shadow = 1.0;
-	var i = 0;
-	//for(var i = 0; i < shadow_max; i++){
-		let shadow_space = light_transforms[i].projection_matrix * light_transforms[i].view_matrix * world_position;
-		let shadow_projection = shadow_space.xyz / shadow_space.w;
-		let shadow_uv = shadow_projection.xy * 0.5 + vec2<f32>(0.5);
-		let shadow_depth = shadow_projection.z;
-		switch(i){
-			//case 0: { shadow *= textureSampleCompare(shadow_map_0, shadow_sampler, shadow_uv, shadow_depth - 0.001); }
-			//case 1: { shadow *= textureSampleCompare(shadow_map_1, shadow_sampler, shadow_uv, shadow_depth - 0.05); }
-			//case 2: { shadow *= textureSampleCompare(shadow_map_2, shadow_sampler, shadow_uv, shadow_depth - 0.05); }
-			//case 3: { shadow *= textureSampleCompare(shadow_map_3, shadow_sampler, shadow_uv, shadow_depth - 0.05); }
-			default: { 
-				var txt = textureSampleCompare(shadow_map_0, shadow_sampler, shadow_uv, shadow_depth - 0.01);
-				txt = textureSampleCompare(shadow_map_1, shadow_sampler, shadow_uv, shadow_depth - 0.01);
-				txt = textureSampleCompare(shadow_map_2, shadow_sampler, shadow_uv, shadow_depth - 0.01);
-				txt = textureSampleCompare(shadow_map_3, shadow_sampler, shadow_uv, shadow_depth - 0.01);
-			} //shouldn't happen...
-		}
-	//}
-	var val = textureSample(shadow_map_0, albedo_sampler, shadow_uv);
-	return vec4(val, val, val, 1.0);
 }
 
 @vertex
@@ -172,11 +147,10 @@ fn fragment_main(frag_data: VertexOut) -> @location(0) vec4<f32>
 	var f0 = mix(vec3(0.04, 0.04, 0.04), material.base_reflectance, material.metalness);
 	var total_color = vec3(0.0);
 	var normal = normalize(frag_data.normal);
-	var shadow = get_shadow(frag_data.world_position);
 
 	for(var i: u32 = 0; i < light_count.count; i++){
-		var light = lights[i];
-		var light_distance = length(light.position - frag_data.world_position.xyz);
+		let light = lights[i];
+		let light_distance = length(light.position - frag_data.world_position.xyz);
 		var to_light = vec3(0.0);
 
 		switch light.light_type {
@@ -189,11 +163,9 @@ fn fragment_main(frag_data: VertexOut) -> @location(0) vec4<f32>
 			default: {}
 		}
 
-		var attenuation = 1.0 / pow(light_distance, 2.0);
-		var radiance = light.color.rgb * attenuation;
-
-
-		total_color += get_bdrf(
+		let attenuation = 1.0 / pow(light_distance, 2.0);
+		let radiance = light.color.rgb * attenuation;
+		let lit_color = get_bdrf(
 			surface_albedo, 
 			f0, 
 			roughness, 
@@ -204,11 +176,13 @@ fn fragment_main(frag_data: VertexOut) -> @location(0) vec4<f32>
 			scene.camera_position, 
 			frag_data.world_position.xyz
 		);
+		let diffuse_factor = max(dot(normal, to_light), 0.0);
+		let shadow = get_shadow(frag_data.world_position, diffuse_factor);
+
+		let shadowed_color = lit_color * shadow;
+		total_color += shadowed_color;
 	}
-
-	total_color *= shadow;
-
-	var tone_mapped_color = total_color / (total_color + vec3(1.0));
-	//return vec4(pow(total_color, vec3(1.0/2.2)), 1.0);
-	return get_shadow_x(frag_data.world_position);
+	
+	let tone_mapped_color = total_color / (total_color + vec3(1.0));
+	return vec4(pow(total_color, vec3(1.0/2.2)), 1.0);
 }
