@@ -16,6 +16,7 @@ Any web server can be used to serve the code however Deno is used for tasks and 
 
 - Partial support for .obj files (no materials)
 - PBR rendering
+- Shadow Maps (directional lighting)
 
 ### Controls
 
