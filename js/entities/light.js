@@ -9,8 +9,6 @@ export class Light {
 	#direction;
 	#color;
 
-	#leftr
-
 	constructor(light) {
 		this.#type = light.type ?? "point";
 		this.#position = light.position ?? [0, 0, 0, 0];

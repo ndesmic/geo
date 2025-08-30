@@ -1,15 +1,16 @@
 import { Camera } from "../../entities/camera.js";
 import { Mesh } from "../../entities/mesh.js";
 import { surfaceGrid } from "../../utilities/mesh-generator.js";
-import { packArray, packLights, packStruct } from "../../utilities/buffer-utils.js";
+import { packArray, packStruct } from "../../utilities/buffer-utils.js";
 import { sphericalToCartesian } from "../../utilities/math-helpers.js";
-import { getTranspose, getInverse, trimMatrix, getEmptyMatrix } from "../../utilities/vector.js";
+import { getTranspose, getInverse, trimMatrix, getEmptyMatrix, getProjectionMatrix } from "../../utilities/vector.js";
 import { uploadMesh, uploadShader, uploadTexture, createColorTexture } from "../../utilities/wgpu-utils.js";
 import { fetchObjMesh } from "../../utilities/data-utils.js";
 import { Material } from "../../entities/material.js";
 import { ShadowMappedLight } from "../../entities/shadow-mapped-light.js";
 import { getMainPipeline, getShadowMapPipeline } from "./pipelines.js";
 import { setupExtractDepthBuffer } from "../../utilities/debug-utils.js";
+import { getRange } from "../../utilities/iterator-utils.js";
 
 export class GpuEngine {
 	#canvas;
@@ -94,32 +95,35 @@ export class GpuEngine {
 		// }
 	}
 	initializeLights(){
-		this.#lights.set("light", new ShadowMappedLight({
+		this.#lights.set("light1", new ShadowMappedLight({
 			type: "directional",
 			//position: sphericalToCartesian([ Math.PI / 4, 0, 2]),
-			color: [2.0,2.0,2.0,1],
-			direction: [-1, -1, 0] 
+			color: [1.0,1.0,1.0,1],
+			direction: [0, -1, 1],
+			hasShadow: true,
 		}));
-		// this.#lights.set("light2", new Light({
-		// 	type: "point",
-		// 	position: sphericalToCartesian([Math.PI / 4, Math.PI, 2]),
-		// 	color: [1,0,0,1]
+		// this.#lights.set("light2", new ShadowMappedLight({
+		// 	type: "directional",
+		// 	//position: sphericalToCartesian([Math.PI / 4, Math.PI, 2]),
+		// 	direction: [0, -1, -1],
+		// 	color: [0.0,0.0,1.0,1],
+		// 	hasShadow: true
 		// }));
 
 		for(const key of this.#lights.keys()){
 			this.#shadowMaps.set(key, this.#device.createTexture({
-				label: "depth-texture",
+				label: `shadow-map-${key}`,
 				size: {
-					width: 4096,
-					height: 4096,
+					width: 2048,
+					height: 2048,
 					depthOrArrayLayers: 1
 				},
 				format: "depth32float",
 				usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
 			}));
 		}
-		this.#shadowMaps.set("dummy", this.#device.createTexture({
-			label: "dummy-depth-texture",
+		this.#shadowMaps.set("placeholder", this.#device.createTexture({
+			label: "placeholder-depth-texture",
 			size: { width: 1, height: 1, depthOrArrayLayers: 1 },
 			format: "depth32float",
 			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
@@ -151,7 +155,7 @@ export class GpuEngine {
 			usage: GPUTextureUsage.RENDER_ATTACHMENT
 		}));
 
-		this.#textures.set("dummy", createColorTexture(this.#device, { label: "dummy-texture" }));
+		this.#textures.set("placeholder", createColorTexture(this.#device, { label: "placeholder-texture" }));
 	}
 	initializeSamplers(){
 		this.#samplers.set("default", this.#device.createSampler({
@@ -165,6 +169,10 @@ export class GpuEngine {
 			compare: "less",
 			magFilter: "linear",
 			minFilter: "linear"
+		}));
+		this.#samplers.set("shadow-map-debug", this.#device.createSampler({
+			label: "shadow-map-debug-sampler",
+			compare: undefined,
 		}));
 	}
 	initializeMaterials(){
@@ -195,8 +203,7 @@ export class GpuEngine {
 				bindGroupLayouts: new Map([
 					["scene", pipeline.getBindGroupLayout(0)],
 					["materials", pipeline.getBindGroupLayout(1)],
-					["lights", pipeline.getBindGroupLayout(2)],
-					["shadows", pipeline.getBindGroupLayout(3)]
+					["lights", pipeline.getBindGroupLayout(2)]
 				]),
 				bindMethod: this.setMainBindGroups.bind(this)
 			});
@@ -286,8 +293,7 @@ export class GpuEngine {
 	setMainBindGroups(passEncoder, bindGroupLayouts, camera, mesh, lights, shadowMaps){
 		this.setMainSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh);
 		this.setMainMaterialBindGroup(passEncoder, bindGroupLayouts, mesh);
-		this.setMainLightBindGroup(passEncoder, bindGroupLayouts, lights);
-		this.setMainShadowBindGroup(passEncoder, bindGroupLayouts, lights, shadowMaps)
+		this.setMainLightBindGroup(passEncoder, bindGroupLayouts, lights, shadowMaps);
 	}
 	setMainSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh){
 		const scene = {
@@ -385,13 +391,46 @@ export class GpuEngine {
 		});
 		passEncoder.setBindGroup(1, materialBindGroup);
 	}
-	setMainLightBindGroup(passEncoder, bindGroupLayouts, lights){
-		const lightData = packLights(lights.values().toArray());
+	setMainLightBindGroup(passEncoder, bindGroupLayouts, lights, shadowMaps){
+		let shadowMapIndex = 0;
+		const shadowMappedLights = lights
+			.entries()
+			.map(([key, value]) => {
+				const shadowMap = shadowMaps.get(key);
+				const shadowMapAspectRatio = shadowMap.width / shadowMap.height;
 
-		const bufferSize = lightData.byteLength;
+				return {
+					typeInt: value.typeInt,
+					position: value.position,
+					direction: value.direction,
+					color: value.color,
+					shadowMap,
+					projectionMatrix: shadowMap ? value.getProjectionMatrix(shadowMapAspectRatio) : getEmptyMatrix([4,4]),
+					viewMatrix: shadowMap ? value.getViewMatrix() : getEmptyMatrix([4,4]),
+					hasShadow: value.hasShadow ? 1 : 0,
+					shadowMapIndex: (value.hasShadow && shadowMap) ? shadowMapIndex++ : -1
+				};
+			}).toArray();
+
+		const shadowMapsToBind = shadowMappedLights
+			.filter(lightData => lightData.shadowMapIndex > -1)
+			.map(lightData => lightData.shadowMap);
+
+		const lightData = packArray(shadowMappedLights,
+		[ 
+			["typeInt", "u32"],
+			["position", "vec3f32"],
+			["direction", "vec3f32"],
+			["color", "vec4f32"],
+			["projectionMatrix", "mat4x4f32"],
+			["viewMatrix", "mat4x4f32"],
+			["hasShadow", "u32"],
+			["shadowMapIndex", "i32"]
+		]
+		, 64);
 
 		const lightBuffer = this.#device.createBuffer({
-			size: bufferSize,
+			size: lightData.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
 			label: "main-light-buffer"
 		});
@@ -404,6 +443,8 @@ export class GpuEngine {
 		});
 		this.#device.queue.writeBuffer(lightCountBuffer, 0, new Int32Array([lights.size]));
 
+		const placeholderView = shadowMaps.get("placeholder").createView({ label: "placeholder-view" });
+
 		const lightBindGroup = this.#device.createBindGroup({
 			label: "main-light-bind-group",
 			layout: bindGroupLayouts.get("lights"),
@@ -413,7 +454,7 @@ export class GpuEngine {
 					resource: {
 						buffer: lightBuffer,
 						offset: 0,
-						size: bufferSize
+						size: lightData.byteLength
 					}
 				},
 				{
@@ -423,95 +464,28 @@ export class GpuEngine {
 						offset: 0,
 						size: 4
 					}
+				},
+				{
+					binding: 2,
+					resource: this.#samplers.get("shadow-map-default")
+				},
+				...(getRange({ end: 3 }).map((index) => {
+					const shadowMap = shadowMapsToBind[index];
+					return {
+						binding: index + 3,
+						resource: shadowMap ? shadowMap.createView({ label: `shadow-view-${index}`}) : placeholderView
+					};
+				})),
+				{
+					binding: 7,
+					resource: this.#samplers.get("shadow-map-debug")
 				}
 			]
 		});
 
 		passEncoder.setBindGroup(2, lightBindGroup);
 	}
-	setMainShadowBindGroup(passEncoder, bindGroupLayouts, lights, shadowMaps){
-		const lightsArray = lights.entries().toArray();
-		if(lightsArray.length > 4){
-			throw new Exception("This engine can only handle shadows from 4 lights max");
-		}
-
-		const lightTransforms = [];
-		const shadowMapsToBind = new Array(4).fill(null);
-
-		let i = 0;
-		for(const [key, light] of lightsArray){
-			const shadowMap = shadowMaps.get(key);
-			shadowMapsToBind[i++] = shadowMap;
-			if(shadowMap){
-				const shadowMapAspectRatio = shadowMap.width / shadowMap.height;
-				lightTransforms.push({
-					projectionMatrix: light.getProjectionMatrix(shadowMapAspectRatio),
-					viewMatrix: light.getViewMatrix()
-				})
-			} else {
-				lightTransforms.push({
-					projectionMatrix: getEmptyMatrix([4, 4]),
-					viewMatrix: getEmptyMatrix([4, 4])
-				});
-			}
-		}
-
-		const lightTransformData = packArray(lightTransforms, [
-			["projectionMatrix", "mat4x4f32"],
-			["viewMatrix", "mat4x4f32"]
-		]);
-
-		const lightTransformBuffer = this.#device.createBuffer({
-			size: lightTransformData.byteLength,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
-			label: "main-shadow-light-transform-buffer"
-		});
-		this.#device.queue.writeBuffer(lightTransformBuffer, 0, lightTransformData);
-
-		const dummyView = shadowMaps.get("dummy").createView();
-		const shadowBindGroup = this.#device.createBindGroup({
-			label: "main-shadow-bind-group",
-			layout: bindGroupLayouts.get("shadows"),
-			entries: [
-				{
-					binding: 0,
-					resource: this.#samplers.get("shadow-map-default")
-				},
-				{
-					binding: 1,
-					resource: {
-						buffer: lightTransformBuffer,
-						offset: 0,
-						size: lightTransformData.byteLength
-					}
-				},
-				...(shadowMapsToBind.map((value, i) => {
-					return {
-						binding: i + 2,
-						resource: value ? value.createView() : dummyView
-					};
-				}))
-			]
-		});
-
-		passEncoder.setBindGroup(3, shadowBindGroup);
-	}
-	setDebugBindGroup(passEncoder, bindGroupLayouts){
-		const debugBindGroup = this.#device.createBindGroup({
-			label: "main-debug-bind-group",
-			layout: bindGroupLayouts.get("debug"),
-			entries: [
-				{
-					binding: 0,
-					resource: this.#samplers.get("shadow-map-default")
-				}
-			]
-		});
-
-		passEncoder.setBindGroup(4, debugBindGroup);
-	}
-	setShadowMapBindGroups(passEncoder, bindGroupLayouts, light, mesh){
-		const shadowMap = this.#shadowMaps.get("light");
+	setShadowMapBindGroups(passEncoder, bindGroupLayouts, light, shadowMap, mesh){
 		const shadowMapAspectRatio = shadowMap.width / shadowMap.height;
 		const viewMatrix = light.getViewMatrix();
 		const projectionMatrix = light.getProjectionMatrix(shadowMapAspectRatio)
@@ -569,7 +543,7 @@ export class GpuEngine {
 		this.setBackgroundSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh);
 		this.setBackgroundTextureBindGroup(passEncoder, bindGroupLayouts);
 	}
-	setBackgroundUSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh){
+	setBackgroundSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh){
 		const inverseViewMatrix = getInverse(camera.getViewMatrix(), [4,4]);
 
 		const sceneBuffer = this.#device.createBuffer({
@@ -608,7 +582,7 @@ export class GpuEngine {
 	}
 	render() {
 		this.renderShadowMaps();
-		//this.renderDepthBuffer(this.#shadowMaps.get("light").createView());
+		//this.renderDepthBuffer(this.#shadowMaps.get("light1").createView());
 		this.renderScene();
 	}
 
@@ -617,9 +591,9 @@ export class GpuEngine {
 			label: "shadow-map-command-encoder"
 		});
 		const shadowMapPipelineContainer = this.#pipelines.get("shadow-map");
-		let isFirstPass = true;
 
 		for(const [key, light] of this.#lights){
+			let isFirstPass = true;
 			const passEncoder = commandEncoder.beginRenderPass({
 				label: `shadow-map-render-pass`,
 				colorAttachments: [],
@@ -634,8 +608,9 @@ export class GpuEngine {
 
 			for (const meshName of this.#pipelineMesh.get("main")) {
 				const meshContainer = this.#meshContainers.get(meshName);
+				const shadowMap = this.#shadowMaps.get(key);
 
-				shadowMapPipelineContainer.bindMethod(passEncoder, shadowMapPipelineContainer.bindGroupLayouts, light, meshContainer.mesh);
+				shadowMapPipelineContainer.bindMethod(passEncoder, shadowMapPipelineContainer.bindGroupLayouts, light, shadowMap, meshContainer.mesh);
 				passEncoder.setVertexBuffer(0, meshContainer.vertexBuffer);
 				passEncoder.setIndexBuffer(meshContainer.indexBuffer, "uint16");
 				passEncoder.drawIndexed(meshContainer.mesh.indices.length);
