@@ -171,46 +171,46 @@ export function screenTri(){
 
 /**
  * Generates a flat surface made up of multiple quads, faces +Y, each quad is 1x1
- * @param {number} height 
- * @param {number} width 
+ * @param {number} rowCount 
+ * @param {number} colCount 
  */
-export function surfaceGrid(height, width){
-	const vertexLength = (height + 1) * (width + 1);
+export function surfaceGrid(rowCount, colCount){
+	const vertexLength = (rowCount + 1) * (colCount + 1);
 	const positions = new Float32Array(vertexLength * 3);
 	const uvs = new Float32Array(vertexLength * 2);
 	const normals = new Float32Array(vertexLength * 3);
 	const tangents = new Float32Array(vertexLength * 3);
-	const indices = new Int16Array(height * width * 6);
+	const indices = new Int16Array(rowCount * colCount * 6);
 
-	let z = -(height / 2);
+	let z = -(rowCount / 2);
 
-	for (let row = 0; row < height + 1; row++) {
-		let x = -(width / 2);
-		for (let col = 0; col < width + 1; col++) {
+	for (let row = 0; row < rowCount + 1; row++) {
+		let x = -(colCount / 2);
+		for (let col = 0; col < colCount + 1; col++) {
 			positions.set([
 				x, 0, z 
-			], (row * (width + 1) + col) * 3);
+			], (row * (colCount + 1) + col) * 3);
 			uvs.set([
-				col / width, row / height
-			], (row * (width + 1) + col) * 2);
+				col / colCount, row / rowCount
+			], (row * (colCount + 1) + col) * 2);
 			normals.set([
 				0, 1, 0
-			], (row * (width + 1) + col) * 3);
+			], (row * (colCount + 1) + col) * 3);
 			tangents.set([
 				1, 0, 0
-			], (row * (width + 1) + col) * 3)
+			], (row * (colCount + 1) + col) * 3)
 			x++;
 		}
 		z++;
 	}
 
-	for(let row = 0; row < height; row++){
-		for(let col = 0; col < width; col++){
-			const index = row * (width + 1) + col;
+	for(let row = 0; row < rowCount; row++){
+		for(let col = 0; col < colCount; col++){
+			const index = row * (colCount + 1) + col;
 			indices.set([
-				index, index + 1, index + width + 2, //take into account the extra vert at end of row
-				index, index + width + 2, index + width + 1
-			], (row * width + col) * 6);
+				index, index + 1, index + colCount + 2, //take into account the extra vert at end of row
+				index, index + colCount + 2, index + colCount + 1
+			], (row * colCount + col) * 6);
 		}
 	}
 
@@ -222,4 +222,107 @@ export function surfaceGrid(height, width){
 		tangents,
 		vertexLength
 	};
+}
+
+/**
+ * Generates a quad facing negative Z, like a wall
+ * @returns {MeshData}
+ */
+export function cube(){
+	return {
+		positions: new Float32Array([
+			//front
+			-1, -1, -1,
+			1, -1, -1,
+			1, 1, -1, 
+			-1, 1, -1,
+			//right
+			1, -1, -1,
+			1, -1, 1,
+			1, 1, 1,
+			1, 1, -1,
+			//back
+			1, -1, 1,
+			-1, -1,	1,
+			-1, 1, 1,
+			1, 1, 1,
+			//left
+			-1, -1, 1,
+			-1, -1, -1,
+			-1, 1, -1,
+			-1, 1, 1,
+			//top
+			-1, 1, -1,
+			1, 1, -1, 
+			1, 1, 1,
+			-1, 1, 1,
+			//bottom
+			1, -1, -1,
+			-1, -1, -1,
+			-1, -1, 1,
+			1, -1, 1
+		]),
+		positionSize: 3,
+		uvs: new Float32Array([
+			0, 1,
+			1, 1,
+			1, 0,
+			0, 0,
+
+			0, 1,
+			1, 1,
+			1, 0,
+			0, 0,
+
+			1, 1,
+			0, 1,
+			0, 0,
+			1, 0,
+
+			0, 1,
+			1, 1,
+			1, 0,
+			0, 0,
+
+			0, 1,
+			1, 1,
+			1, 0,
+			0, 0,
+
+			0, 1,
+			1, 1,
+			1, 0,
+			0, 0
+		]),
+		uvSize: 2,
+		normals: new Float32Array([
+			0, 0, -1,
+			0, 0, -1,
+			0, 0, -1,
+			0, 0, -1,
+
+			1, 0, 0,
+			1, 0, 0,
+			1, 0, 0,
+			1, 0, 0,
+
+			0, 0, 1,
+			0, 0, 1,
+			0, 0, 1,
+			0, 0, 1,
+
+			-1, 0, 0,
+			-1, 0, 0,
+			-1, 0, 0,
+			-1, 0, 0,
+
+			0, 1, 0,
+			0, 1, 0,
+			0, 1, 0,
+			0, 1, 0
+		]),
+		normalSize: 3,
+		indices: [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23],
+		vertexLength: 24
+	}
 }

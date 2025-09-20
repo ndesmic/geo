@@ -1,6 +1,6 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { getAlignments, getPaddedSize, packArray, packMesh, packStruct } from "./buffer-utils.js";
+import { getAlignments, getPaddedSize, packArray, packMesh, packStruct, roundSmallMagnitudeValues } from "./buffer-utils.js";
 import { Mesh } from "../entities/mesh.js";
 
 describe("buffer-utils", () => {
@@ -183,6 +183,16 @@ describe("buffer-utils", () => {
 				77,0,5,6,11,
 				0
 			]));
+		});
+	});
+	describe("roundSmallMagnitudeValues", () => {
+		it("should round small positive values to zero", () => {
+			const result = roundSmallMagnitudeValues(new Float32Array([ 1, 2, 6.123234262925839e-17, 4]));
+			expect(result).toEqual(new Float32Array([1, 2, 0, 4]));
+		});
+		it("should round small negative values to zero", () => {
+			const result = roundSmallMagnitudeValues(new Float32Array([ 1, -6.123234262925839e-17, 3, 4]));
+			expect(result).toEqual(new Float32Array([1, 0, 3, 4]));
 		});
 	});
 });

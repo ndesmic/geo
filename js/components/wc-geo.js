@@ -2,6 +2,8 @@ import { GpuEngine as Engine } from "../engines/gpu-engine/gpu-engine.js";
 import { DEGREES_PER_RADIAN } from "../utilities/math-helpers.js";
 import { downloadBlob } from "../utilities/data-utils.js";
 
+import { parseScene } from "../utilities/geo-markup-parser.js";
+
 export class WcGeo extends HTMLElement {
 	static observedAttributes = ["height", "width"];
 	#height = 720;
@@ -49,7 +51,12 @@ export class WcGeo extends HTMLElement {
 		this.cacheDom();
 		this.attachEvents();
 		this.engine = new Engine({ canvas: this.dom.canvas });
-		await this.engine.initialize();
+
+		const scene = await parseScene(this);
+		
+		await this.engine.initialize({
+			scene
+		});
 		this.engine.start();
 		this.#engineReady = true;
 	}
@@ -177,10 +184,10 @@ export class WcGeo extends HTMLElement {
 			}, 0);
 		}
 	}
-	onSPressed(e){
+	onSPressed(e) {
 		this.engine.cameras.get("main").panBy({ z: -0.1 });
 	}
-	onEscPressed(e){
+	onEscPressed(e) {
 		if (this.engine.isRunning) {
 			this.engine.stop();
 			this.dom.message.textContent = "Paused";
@@ -190,7 +197,7 @@ export class WcGeo extends HTMLElement {
 		}
 		return;
 	}
-	setTemporaryMessage(text){
+	setTemporaryMessage(text) {
 		this.dom.message.textContent = text;
 		setTimeout(() => {
 			this.dom.message.textContent = "";

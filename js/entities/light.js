@@ -8,12 +8,14 @@ export class Light {
 	#position;
 	#direction;
 	#color;
+	#castsShadow;
 
 	constructor(light) {
 		this.#type = light.type ?? "point";
 		this.#position = light.position ?? [0, 0, 0, 0];
 		this.#direction = light.direction ?? [0, 0, 0, 0];
 		this.#color = light.color ?? [1, 1, 1, 1];
+		this.#castsShadow = light.castsShadow ?? false;
 	}
 
 	static getLightInt(lightType) {
@@ -54,5 +56,13 @@ export class Light {
 	}
 	get color() {
 		return this.#color;
+	}
+
+	set castsShadow(val){
+		this.#castsShadow = val;
+	}
+
+	get castsShadow(){
+		return this.#castsShadow;
 	}
 }

@@ -1,28 +1,31 @@
+import { DEFAULT_SAMPLER, PLACEHOLDER_TEXTURE } from "../engines/gpu-engine/gpu-engine.js";
+
 export class Material {
-	#useSpecularMap;
-	#specularMap;
-	#specularSampler;
+	#useRoughnessMap;
+	#roughnessMap;
+	#roughnessSampler;
 	#roughness;
 
 	#metalness;
 	#baseReflectance;
 
-	#texture;
-	#textureSampler;
+	#albedoMap;
+	#albedoSampler;
 	#name;
 
 	constructor(options){
 		this.name = options.name;
-		this.useSpecularMap = options.useSpecularMap ?? false;
-		this.specularMap = options.specularMap ?? "placeholder";
-		this.specularSampler = options.specularSampler ?? "default";
+
+		this.useRoughnessMap = options.useRoughnessMap ?? false;
+		this.roughnessMap = options.roughnessMap ?? PLACEHOLDER_TEXTURE;
+		this.roughnessSampler = options.roughnessSampler ?? DEFAULT_SAMPLER;
 		this.roughness = options.roughness ?? 0.0;
+
+		this.albedoMap = options.albedoMap ?? PLACEHOLDER_TEXTURE;
+		this.albedoSampler = options.albedoSampler ?? DEFAULT_SAMPLER;
 
 		this.#metalness = options.metalness ?? 0.0;
 		this.#baseReflectance = options.baseReflectance ?? [0.04, 0.04, 0.04];
-
-		this.texture = options.texture ?? "placeholder";
-		this.textureSampler = options.textureSampler ?? "default";
 	}
 
 	set name(val){
@@ -31,23 +34,23 @@ export class Material {
 	get name(){
 		return this.#name;
 	}
-	set useSpecularMap(val){
-		this.#useSpecularMap = val;
+	set useRoughnessMap(val){
+		this.#useRoughnessMap = val;
 	}
-	get useSpecularMap(){
-		return this.#useSpecularMap;
+	get useRoughnessMap(){
+		return this.#useRoughnessMap;
 	}
-	set specularMap(val){
-		this.#specularMap = val;
+	set roughnessMap(val){
+		this.#roughnessMap = val;
 	}
-	get specularMap(){
-		return this.#specularMap;
+	get roughnessMap(){
+		return this.#roughnessMap;
 	}
-	set specularSampler(val){
-		this.#specularSampler = val;
+	set roughnessSampler(val){
+		this.#roughnessSampler = val;
 	}
-	get specularSampler(){
-		return this.#specularSampler;
+	get roughnessSampler(){
+		return this.#roughnessSampler;
 	}
 	set roughness(val){
 		this.#roughness = val;
@@ -67,16 +70,16 @@ export class Material {
 	get baseReflectance(){
 		return this.#baseReflectance;
 	}
-	set texture(val){
-		this.#texture = val;
+	set albedoMap(val){
+		this.#albedoMap = val;
 	}
-	get texture() {
-		return this.#texture;
+	get albedoMap() {
+		return this.#albedoMap;
 	}
-	set textureSampler(val){
-		this.#textureSampler = val;
+	set albedoSampler(val){
+		this.#albedoSampler = val;
 	}
-	get textureSampler(){
-		return this.#textureSampler;
+	get albedoSampler(){
+		return this.#albedoSampler;
 	}
 }

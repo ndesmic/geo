@@ -6,13 +6,11 @@ import { Mesh } from "../entities/mesh.js";
  * Loads an image url, uploads to GPU and returns texture ref.
  * Cubemaps defined like [+X, -X, +Y, -Y, +Z, -Z]
  * @param {GPUDevice} device 
- * @param {string | string[]} urlOrUrls 
- * @param {*} options 
+ * @param {HTMLImageElement | HTMLImageElement[]} imageOrImages
+ * @param {{ label?: string }} options 
  */
-export async function uploadTexture(device, urlOrUrls, options = {}) {
-	const urls = [].concat(urlOrUrls);
-	const images = await Promise.all(urls.map(url => loadImage(url)));
-
+export function uploadTexture(device, imageOrImages, options = {}) {
+	const images = [].concat(imageOrImages);
 	const size = {
 		width: images[0].width,
 		height: images[0].height,
@@ -20,6 +18,7 @@ export async function uploadTexture(device, urlOrUrls, options = {}) {
 	};
 
 	const texture = device.createTexture({
+		label: options.label,
 		size,
 		dimension: "2d",
 		format: `rgba8unorm`,

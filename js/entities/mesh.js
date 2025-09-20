@@ -16,6 +16,7 @@ export class Mesh {
 	#vertexLength;
 	#material;
 	#transforms = [];
+	#worldMatrix = getIdentityMatrix();
 
 	/** @typedef { "positions" | "colors" | "uvs" | "normals" | "tangents" } AttributeKey */
 	/** @type { readonly [AttributeKey, string][] } */
@@ -181,7 +182,7 @@ export class Mesh {
 	}
 	bakeTransforms(){
 		//positions
-		const modelMatrix = this.getModelMatrix();
+		const modelMatrix = this.modelMatrix;
 		const transformedPositions = chunk(this.positions, this.positionSize)
 			.map(values => {
 				const lengthToPad = 4 - values.length;
@@ -229,10 +230,19 @@ export class Mesh {
 		this.resetTransforms();
 		return this;
 	}
-	getModelMatrix() {
+	get modelMatrix() {
 		return this.#transforms.reduce((mm, tm) => multiplyMatrix(tm, [4,4], mm, [4,4]), getIdentityMatrix());
 	}
-	getNormalMatrix(){
+	get worldMatrix() {
+		return this.#worldMatrix;
+	}
+	/**
+	 * @param {Float32Array} value 
+	 */
+	set worldMatrix(value){
+		this.#worldMatrix = value;
+	}
+	get normalMatrix(){
 		return getTranspose(getInverse(trimMatrix(modelMatrix, [3, 3])));
 	}
 	/**

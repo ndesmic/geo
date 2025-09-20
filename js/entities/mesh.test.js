@@ -19,7 +19,7 @@ describe("Mesh", () => {
 		})
 			.translate({ x: 1 });
 
-		expect(mesh.getModelMatrix()).toEqual(new Float32Array([
+		expect(mesh.modelMatrix).toEqual(new Float32Array([
 			1, 0, 0, 1,
 			0, 1, 0, 0,
 			0, 0, 1, 0,
