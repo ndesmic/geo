@@ -16,6 +16,11 @@ export function getRotationYMatrix(theta) {
 	]);
 }
 
+/**
+ * 
+ * @param {number} theta amount in radians, turns counter-clockwise in XY plane/around Z-axis
+ * @returns 
+ */
 export function getRotationZMatrix(theta) {
 	return new Float32Array([
 		Math.cos(theta), -Math.sin(theta), 0, 0,
@@ -78,7 +83,7 @@ export function multiplyMatrixVector(vector, matrix, size) {
 		for(let j = 0; j < size; j++){
 			sum += vector[j] * matrix[i * size + j] 
 		}
-		newVector.set([sum], i);
+		newVector[i] = sum;
 	}
 
 	return newVector;
@@ -514,4 +519,16 @@ export function getTangentVectors(trianglePositions, triangleUVs){
 
 	const inverseDeltaUV = getInverse(deltaUV);
 	return multiplyMatrix(inverseDeltaUV, deltaPositions);
+}
+
+export function multiplyPointsByMatrix(points, pointSize, matrix){
+	const outputPoints = new Float32Array(points.length);
+	for(let i = 0; i < points.length; i += pointSize){
+		const vector = new Float32Array(pointSize);
+		vector.set(points.slice(i, i + pointSize), 0);
+
+		const result = multiplyMatrixVector(vector, matrix, pointSize);
+		outputPoints.set(result, i);
+	}
+	return outputPoints;
 }

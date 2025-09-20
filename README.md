@@ -18,6 +18,11 @@ Any web server can be used to serve the code however Deno is used for tasks and 
 - PBR rendering
 - Shadow Maps (directional lighting)
 
+### Specs
+
+- Left-hand coordinate system
+- CCW winding order
+
 ### Controls
 
 - WASD translation

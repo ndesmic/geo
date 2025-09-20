@@ -238,3 +238,10 @@ export function getAlignments(typesToPack, minSize){
 		totalSize: getPaddedSize(offset, maxAlign, minSize)
 	};
 }
+
+export function roundSmallMagnitudeValues(array, threshold = 1e-7){
+	for(let i = 0; i < array.length; i++){
+		array[i] = Math.abs(array[i]) < threshold ? 0 : array[i];
+	}
+	return array;
+}

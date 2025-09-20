@@ -10,6 +10,7 @@ struct Scene {
 	view_matrix: mat4x4<f32>,
 	projection_matrix: mat4x4<f32>,
 	model_matrix: mat4x4<f32>,
+	world_matrix: mat4x4<f32>,
 	normal_matrix: mat3x3<f32>,
 	camera_position: vec3<f32>
 }
@@ -70,8 +71,7 @@ fn get_normal_distribution(roughness: f32, normal: vec3<f32>, half_vector: vec3<
 
 //GGX-schlick
 fn get_geometry(to_view: vec3<f32>, to_light: vec3<f32>, normal: vec3<f32>, roughness: f32) -> f32 {
-	var k = roughness / 2; //might be different in other renderers
-	//var k = pow(roughness + 1, 2.0) / 8; 
+	var k = pow(roughness + 1, 2.0) / 8; //might be different in other renderers
 	var n_dot_l = max(dot(normal, to_light), 0.0);
 	var geometry_light = n_dot_l / ((n_dot_l * (1.0 - k) + k) + 0.00001);
 	var n_dot_v = max(dot(normal, to_view), 0.0);
@@ -126,13 +126,17 @@ fn get_shadow(world_position: vec4<f32>, diffuse_factor: f32) -> f32 {
 	}
 	return shadow;
 }
+fn round_small_mag_3(v: vec3<f32>) -> vec3<f32> {
+  return select(v, vec3<f32>(0.0), abs(v) < vec3<f32>(1e-6));
+}
+
 
 @vertex
 fn vertex_main(@location(0) position: vec3<f32>, @location(1) uv: vec2<f32>, @location(2) normal: vec3<f32>) -> VertexOut
 {
 	var output : VertexOut;
-	output.frag_position =  scene.projection_matrix * scene.view_matrix * scene.model_matrix * vec4<f32>(position, 1.0);
-	output.world_position = scene.model_matrix * vec4<f32>(position, 1.0);
+	output.frag_position =  scene.projection_matrix * scene.view_matrix * scene.world_matrix * scene.model_matrix * vec4<f32>(position, 1.0);
+	output.world_position = scene.world_matrix * scene.model_matrix * vec4<f32>(position, 1.0);
 	output.uv = uv;
 	output.normal = scene.normal_matrix * normal;
 	
@@ -146,8 +150,9 @@ fn fragment_main(frag_data: VertexOut) -> @location(0) vec4<f32>
 	var roughness = max(mix(material.roughness, roughness_from_map, f32(material.use_specular_map)), 0.0001);
 	var f0 = mix(vec3(0.04, 0.04, 0.04), material.base_reflectance, material.metalness);
 	var total_color = vec3(0.0);
-	var normal = normalize(frag_data.normal);
+	var normal = round_small_mag_3(normalize(frag_data.normal));
 
+	let i = 0u;
 	for(var i: u32 = 0; i < light_count.count; i++){
 		let light = lights[i];
 		let light_distance = length(light.position - frag_data.world_position.xyz);

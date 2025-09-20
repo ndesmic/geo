@@ -1,6 +1,7 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { getRow, getColumn, getTranspose, multiplyMatrix, trimMatrix, getDeterminant, scaleMatrix, getDeterminantSubmatrix, getCofactorMatrix, getAdjugate, getInverse, multiplyMatrixVector, addVector, subtractVector, scaleVector, divideVector } from "./vector.js";
+import { getRow, getColumn, getTranspose, multiplyMatrix, trimMatrix, getDeterminant, scaleMatrix, getDeterminantSubmatrix, getCofactorMatrix, getAdjugate, getInverse, multiplyMatrixVector, addVector, subtractVector, scaleVector, divideVector, multiplyPointsByMatrix, getRotationZMatrix } from "./vector.js";
+import { roundSmallMagnitudeValues } from "./buffer-utils.js";
 
 describe("vector", () => {
 	describe("addVector", () => {
@@ -349,6 +350,39 @@ describe("vector", () => {
 				2, 5, -2,
 				0, -4, 1,
 				-1, -2, 1
+			]));
+		});
+	});
+	describe("multiplyPointsByMatrix", () => {
+		it("should multiply points", () => {
+			const result = multiplyPointsByMatrix(new Float32Array([
+				1, 1, 1,
+				2, 2, 2,
+				3, 3, 3
+			]), 3, new Float32Array([
+				1,0,0,
+				0,2,0,
+				0,0,3
+			]));
+
+			expect(result).toEqual(new Float32Array([
+				1, 2, 3,
+				2, 4, 6,
+				3, 6, 9
+			]));
+		});
+		it("should multiply points (rotation)", () => {
+			const result = multiplyPointsByMatrix(new Float32Array([
+				1, 0, 0, 1,
+				0, 1, 0, 1,
+				1, 2, 3, 1
+			]), 4, getRotationZMatrix(Math.PI / 2));
+			roundSmallMagnitudeValues(result);
+
+			expect(result).toEqual(new Float32Array([
+				0, 1, 0, 1,
+				-1, 0, 0, 1,
+				-2, 1, 3, 1
 			]));
 		});
 	});
