@@ -1,7 +1,8 @@
-import { multiplyMatrix, getIdentityMatrix, getTranslationMatrix, getScaleMatrix, getRotationXMatrix, getRotationYMatrix, getRotationZMatrix, getTranspose, multiplyMatrixVector, addVector, divideVector, subtractVector, getInverse, trimMatrix, normalizeVector } from "../utilities/vector.js";
+import { getTranspose, multiplyMatrixVector, addVector, divideVector, subtractVector, getInverse, trimMatrix, normalizeVector } from "../utilities/vector.js";
 import { chunk } from "../utilities/iterator-utils.js";
+import { Transformable } from "./transformable.js";
 
-export class Mesh {
+export class Mesh extends Transformable {
 	#positions;
 	#positionSize;
 	#colors;
@@ -15,8 +16,6 @@ export class Mesh {
 	#indices;
 	#vertexLength;
 	#material;
-	#transforms = [];
-	#worldMatrix = getIdentityMatrix();
 
 	/** @typedef { "positions" | "colors" | "uvs" | "normals" | "tangents" } AttributeKey */
 	/** @type { readonly [AttributeKey, string][] } */
@@ -31,6 +30,7 @@ export class Mesh {
 	static empty = new Float32Array(0);
 
 	constructor(mesh) {
+		super();
 		this.positions = mesh.positions ?? Mesh.empty;
 		this.colors = mesh.colors ?? Mesh.empty;
 		this.normals = mesh.normals ?? Mesh.empty;
@@ -156,30 +156,6 @@ export class Mesh {
 		}
 		return this;
 	}
-	translate({ x = 0, y = 0, z = 0 }) {
-		this.#transforms.push(getTranslationMatrix(x, y ,z));
-		return this;
-	}
-	scale({ x = 1, y = 1, z = 1 }) {
-		this.#transforms.push(getScaleMatrix(x, y, z));
-		return this;
-	}
-	rotate({ x, y, z }) {
-		//there's an order dependency here... something something quaternions...
-		if (x) {
-			this.#transforms.push(getRotationXMatrix(x));
-		}
-		if (y) {
-			this.#transforms.push(getRotationYMatrix(y));
-		}
-		if (z) {
-			this.#transforms.push(getRotationZMatrix(z));
-		}
-		return this;
-	}
-	resetTransforms() {
-		this.#transforms = [];
-	}
 	bakeTransforms(){
 		//positions
 		const modelMatrix = this.modelMatrix;
@@ -201,7 +177,7 @@ export class Mesh {
 					}
 				}
 			})
-			.map(values => multiplyMatrixVector(values, modelMatrix, this.positionSize + 1)) //need homogenous coordinates for positions
+			.map(values => multiplyMatrixVector(modelMatrix, values, this.positionSize + 1)) //need homogenous coordinates for positions
 			.toArray();
 
 		const normalMatrix = getTranspose(
@@ -210,7 +186,7 @@ export class Mesh {
 			[this.normalSize,this.normalSize]), 
 		[this.normalSize,this.normalSize]);
 		const transformedNormals = chunk(this.normals, this.normalSize)
-			.map(values => multiplyMatrixVector(values, normalMatrix, this.normalSize))
+			.map(values => multiplyMatrixVector(normalMatrix, values, this.normalSize))
 			.map(values => normalizeVector(values))
 			.toArray();
 
@@ -229,18 +205,6 @@ export class Mesh {
 		this.normals = newNormalsBuffer;
 		this.resetTransforms();
 		return this;
-	}
-	get modelMatrix() {
-		return this.#transforms.reduce((mm, tm) => multiplyMatrix(tm, [4,4], mm, [4,4]), getIdentityMatrix());
-	}
-	get worldMatrix() {
-		return this.#worldMatrix;
-	}
-	/**
-	 * @param {Float32Array} value 
-	 */
-	set worldMatrix(value){
-		this.#worldMatrix = value;
 	}
 	get normalMatrix(){
 		return getTranspose(getInverse(trimMatrix(modelMatrix, [3, 3])));

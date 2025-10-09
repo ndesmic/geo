@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Geo - Should resize canvas</title>
+	</head>
+	<body>
+		<h1>Geo - Should resize canvas</h1>
+        <label for="select-change-resolution">Change resolution</label>
+        <select id="select-change-resolution">
+            <option value="sd">480 x 720</option>
+            <option value="hd">720 x 1280</option>
+            <option value="fhd">1080 x 1920</option>
+        </select>
+		<wc-geo height="480" width="720">
+			<geo-camera name="main" position="0, 0, -2"></geo-camera>
+
+			<geo-texture name="red-fabric" src="../../img/red-fabric/red-fabric-base.jpg"></geo-texture>
+			<geo-texture name="red-fabric-roughness" src="../../img/red-fabric/red-fabric-roughness.jpg"></geo-texture>
+			<geo-texture name="gold" color="0, 0, 0, 1"></geo-texture>
+
+			<geo-material name="red-fabric" roughness-map="red-fabric-roughness" albedo-map="red-fabric"></geo-material>
+			<geo-material name="gold" roughness="0.2" metalness="1" base-reflectance="1.059, 0.773, 0.307" albedo-map="gold"></geo-material>
+
+			<geo-group name="teapot-rug">
+				<geo-mesh 
+					name="teapot" 
+					normalize
+					bake-transforms 
+					reverse-winding 
+					src="../../objs/teapot.obj" 
+					resize-uvs="2" 
+					material="gold" 
+					attributes="positions, normals, uvs">
+				</geo-mesh>
+				<geo-surface-grid 
+					name="rug" 
+					row-count="2" 
+					col-count="2" 
+					translate="0, -0.25, 0" 
+					bake-transforms 
+					material="red-fabric" 
+					attributes="positions, normals, uvs">
+				</geo-surface-grid>
+			</geo-group>
+			
+			<geo-light type="directional" color="1, 1, 1, 1" direction="0, -1, 1" casts-shadow></geo-light>
+		</wc-geo>
+		<script src="../../js/components/wc-geo.js" type="module"></script>
+        <script>
+            const select = document.querySelector("#select-change-resolution");
+            const geo = document.querySelector("wc-geo");
+            select.addEventListener("change", (e) => {
+                switch(e.target.value){
+                    case "sd": {
+                        geo.width = 720;
+                        geo.height = 480;
+                        break; 
+                    }
+                    case "hd": {
+                        geo.width = 1280;
+                        geo.height = 720;
+                        break; 
+                    }
+                    case "fhd": {
+                        geo.width = 1920;
+                        geo.height = 1080;
+                        break; 
+                    }
+                }
+                
+            })
+        </script>
+	</body>
+</html>

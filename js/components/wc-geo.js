@@ -30,12 +30,13 @@ export class WcGeo extends HTMLElement {
 		element.onPointerUp = element.onPointerUp.bind(element);
 		element.onPointerMove = element.onPointerMove.bind(element);
 		element.onWheel = element.onWheel.bind(element);
+		element.onRender = element.onRender.bind(element);
 	}
 	createShadowDom() {
 		this.shadow = this.attachShadow({ mode: "open" });
 		this.shadow.innerHTML = `
 				<style>
-					:host { display: inline-grid; flex-flow: column nowrap; grid-template-rows: auto; grid-template-columns: auto; }
+					:host { display: grid; flex-flow: column nowrap; grid-template-rows: auto; grid-template-columns: auto; }
 					canvas { grid-row: 1 / 2; grid-column: 1 / 2; display: block; }
 					#overlay { grid-row: 1 / 2; grid-column: 1 / 2; position: relative; pointer-events: none; }
 					#message { position: absolute; top: 8px; right: 8px; color: red; }
@@ -50,10 +51,13 @@ export class WcGeo extends HTMLElement {
 		this.createShadowDom();
 		this.cacheDom();
 		this.attachEvents();
-		this.engine = new Engine({ canvas: this.dom.canvas });
+		this.engine = new Engine({
+			canvas: this.dom.canvas,
+			onRender: this.onRender
+		});
 
 		const scene = await parseScene(this);
-		
+
 		await this.engine.initialize({
 			scene
 		});
@@ -73,17 +77,18 @@ export class WcGeo extends HTMLElement {
 	}
 	onKeyDown(e) {
 		if (!this.#engineReady) return;
+		const camera = this.engine.cameras.get("main");
 		switch (e.code) {
 			case "KeyA": {
-				this.engine.cameras.get("main").panBy({ x: 0.1 });
+				camera.panBy({ x: 0.1 });
 				break;
 			}
 			case "KeyD": {
-				this.engine.cameras.get("main").panBy({ x: -0.1 });
+				camera.panBy({ x: -0.1 });
 				break;
 			}
 			case "KeyW": {
-				this.engine.cameras.get("main").panBy({ z: 0.1 });
+				camera.panBy({ z: 0.1 });
 				break;
 			}
 			case "KeyR": {
@@ -95,27 +100,31 @@ export class WcGeo extends HTMLElement {
 				break;
 			}
 			case "NumpadAdd": {
-				this.engine.cameras.get("main").zoomBy(2);
+				camera.zoomBy(2);
 				break;
 			}
 			case "NumpadSubtract": {
-				this.engine.cameras.get("main").zoomBy(0.5);
+				camera.zoomBy(0.5);
 				break;
 			}
 			case "ArrowUp": {
-				this.engine.cameras.get("main").orbitBy({ lat: Math.PI / 32 });
+				camera.orbitBy({ lat: Math.PI / 32 }, new Float32Array([0, 0, 0, 1]));
+				camera.lookAt(new Float32Array([0, 0, 0, 1]));
 				break;
 			}
 			case "ArrowDown": {
-				this.engine.cameras.get("main").orbitBy({ lat: -Math.PI / 32 });
+				camera.orbitBy({ lat: -Math.PI / 32 }, new Float32Array([0, 0, 0, 1]));
+				camera.lookAt(new Float32Array([0, 0, 0, 1]));
 				break;
 			}
 			case "ArrowRight": {
-				this.engine.cameras.get("main").orbitBy({ long: Math.PI / 32 });
+				camera.orbitBy({ long: -Math.PI / 32 }, new Float32Array([0, 0, 0, 1]));
+				camera.lookAt(new Float32Array([0, 0, 0, 1]));
 				break;
 			}
 			case "ArrowLeft": {
-				this.engine.cameras.get("main").orbitBy({ long: -Math.PI / 32 });
+				camera.orbitBy({ long: Math.PI / 32 }, new Float32Array([0, 0, 0, 1]));
+				camera.lookAt(new Float32Array([0, 0, 0, 1]));
 				break;
 			}
 			case "Escape": {
@@ -128,7 +137,7 @@ export class WcGeo extends HTMLElement {
 	onPointerDown(e) {
 		if (!this.#engineReady) return;
 		this.#initialPointer = [e.offsetX, e.offsetY];
-		this.#initialCameraPosition = this.engine.cameras.get("main").getPosition();
+		this.#initialCameraPosition = this.engine.cameras.get("main").position;
 		this.dom.canvas.setPointerCapture(e.pointerId);
 		this.dom.canvas.addEventListener("pointermove", this.onPointerMove);
 		this.dom.canvas.addEventListener("pointerup", this.onPointerUp);
@@ -143,8 +152,10 @@ export class WcGeo extends HTMLElement {
 		const xRads = pointerDelta[0] * radsPerWidth;
 		const yRads = pointerDelta[1] * radsPerWidth * (this.#height / this.#width);
 
-		this.engine.cameras.get("main").setPosition(this.#initialCameraPosition);
-		this.engine.cameras.get("main").orbitBy({ long: xRads, lat: yRads });
+		const camera = this.engine.cameras.get("main");
+		camera.position = this.#initialCameraPosition;
+		camera.orbitBy({ long: xRads, lat: yRads }, [0, 0, 0]);
+		camera.lookAt([0, 0, 0]);
 	}
 	onPointerUp(e) {
 		this.dom.canvas.removeEventListener("pointermove", this.onPointerMove);
@@ -197,6 +208,8 @@ export class WcGeo extends HTMLElement {
 		}
 		return;
 	}
+	onRender() {
+	}
 	setTemporaryMessage(text) {
 		this.dom.message.textContent = text;
 		setTimeout(() => {
@@ -206,11 +219,29 @@ export class WcGeo extends HTMLElement {
 	attributeChangedCallback(name, oldValue, newValue) {
 		this[name] = newValue;
 	}
-	renderLoop() {
-		requestAnimationFrame((timestamp) => {
-			this.render(timestamp);
-			this.renderLoop();
-		});
+	set width(value) {
+		this.#width = parseInt(value, 10);
+		if (this.dom?.canvas) {
+			this.dom.canvas.width = this.#width;
+		}
+		if (this.engine?.isInitialized) {
+			this.engine.updateCanvasSize();
+		}
+	}
+	get width() {
+		return this.#width;
+	}
+	set height(value) {
+		this.#height = parseInt(value, 10);
+		if (this.dom?.canvas) {
+			this.dom.canvas.height = this.#height;
+		}
+		if (this.engine?.isInitialized) {
+			this.engine.updateCanvasSize();
+		}
+	}
+	get height() {
+		return this.#height;
 	}
 }
 

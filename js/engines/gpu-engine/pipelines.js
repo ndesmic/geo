@@ -23,7 +23,8 @@ export async function getMainPipeline(device) {
 		stepMode: "vertex"
 	}];
 
-	const shaderModule = await uploadShader(device, "./shaders/pbr.wgsl");
+	const relativeShaderUrl = import.meta.resolve("../../../shaders/pbr.wgsl");
+	const shaderModule = await uploadShader(device, relativeShaderUrl);
 
 	const sceneBindGroupLayout = device.createBindGroupLayout({
 		label: "main-scene-bind-group-layout",
@@ -41,15 +42,15 @@ export async function getMainPipeline(device) {
 	const materialBindGroupLayout = device.createBindGroupLayout({
 		label: "main-material-bind-group-layout",
 		entries: [
-			{ 
-				binding: 0, 
+			{
+				binding: 0,
 				visibility: GPUShaderStage.FRAGMENT,
 				sampler: {
 					type: "filtering"
 				}
 			},
-			{ 
-				binding: 1, 
+			{
+				binding: 1,
 				visibility: GPUShaderStage.FRAGMENT,
 				texture: {
 					sampleType: 'float',
@@ -215,7 +216,7 @@ export async function getShadowMapPipeline(device) {
 		stepMode: "vertex"
 	}];
 
-	const shaderModule = await uploadShader(device, "./shaders/shadow-map.wgsl");
+	const shaderModule = await uploadShader(device, "../../../shaders/shadow-map.wgsl");
 
 	const sceneBindGroupLayout = device.createBindGroupLayout({
 		label: "main-scene-bind-group-layout",
@@ -258,5 +259,48 @@ export async function getShadowMapPipeline(device) {
 			format: "depth32float"
 		},
 	};
+	return device.createRenderPipeline(pipelineDescriptor);
+}
+
+export async function getBackgroundPipeline(device) {
+	const vertexBufferDescriptor = [{
+		attributes: [
+			{
+				shaderLocation: 0,
+				offset: 0,
+				format: "float32x2"
+			}
+		],
+		arrayStride: 8,
+		stepMode: "vertex"
+	}];
+
+	const shaderModule = await uploadShader(device, import.meta.resolve("../../../shaders/background.wgsl"));
+
+	const pipelineDescriptor = {
+		label: "background-pipeline",
+		vertex: {
+			module: shaderModule,
+			entryPoint: "vertex_main",
+			buffers: vertexBufferDescriptor
+		},
+		fragment: {
+			module: shaderModule,
+			entryPoint: "fragment_main",
+			targets: [
+				{ format: "rgba8unorm" }
+			]
+		},
+		primitive: {
+			topology: "triangle-list"
+		},
+		depthStencil: {
+			depthWriteEnabled: true,
+			depthCompare: "less-equal",
+			format: "depth32float"
+		},
+		layout: "auto"
+	};
+
 	return device.createRenderPipeline(pipelineDescriptor);
 }

@@ -240,8 +240,9 @@ export function getAlignments(typesToPack, minSize){
 }
 
 export function roundSmallMagnitudeValues(array, threshold = 1e-7){
+	const newArray = new Float32Array(array);
 	for(let i = 0; i < array.length; i++){
-		array[i] = Math.abs(array[i]) < threshold ? 0 : array[i];
+		newArray[i] = Math.abs(newArray[i]) < threshold ? 0 : newArray[i];
 	}
-	return array;
+	return newArray;
 }

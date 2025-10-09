@@ -1,16 +1,21 @@
-import { packArray, packStruct } from "../../utilities/buffer-utils.js";
-import { getTranspose, getInverse, trimMatrix, getEmptyMatrix, multiplyMatrix } from "../../utilities/vector.js";
-import { uploadMesh, uploadShader, uploadTexture, createColorTexture } from "../../utilities/wgpu-utils.js";
+import { packArray, packStruct, roundSmallMagnitudeValues } from "../../utilities/buffer-utils.js";
+import { getTranspose, getInverse, trimMatrix, getEmptyMatrix, multiplyMatrix, multiplyMatrixVector, printMatrix } from "../../utilities/vector.js";
+import { uploadMesh, uploadTexture, createColorTexture } from "../../utilities/wgpu-utils.js";
 import { getLightViewMatrix, getLightProjectionMatrix } from "../../utilities/light-utils.js";
-import { getMainPipeline, getShadowMapPipeline } from "./pipelines.js";
+import { getBackgroundPipeline, getMainPipeline, getShadowMapPipeline } from "./pipelines.js";
 import { setupExtractDepthBuffer } from "../../utilities/debug-utils.js";
 import { Group } from "../../entities/group.js";
 import { Mesh } from "../../entities/mesh.js";
+import { Light } from "../../entities/light.js";
+import { Camera } from "../../entities/camera.js";
+import { Material } from "../../entities/material.js";
 import { getRange } from "../../utilities/iterator-utils.js";
+import { screenTri } from "../../utilities/mesh-generator.js";
 
 export const DEPTH_TEXTURE = Symbol("depth-texture");
 export const PLACEHOLDER_TEXTURE = Symbol("placeholder-texture");
 export const DEFAULT_SAMPLER = Symbol("default-sampler");
+export const DEFAULT_NEAREST_SAMPLER = Symbol("default-nearest-sampler");
 export const DEFAULT_SHADOW_SAMPLER = Symbol("default-shadow-sampler");
 
 export class GpuEngine {
@@ -20,8 +25,10 @@ export class GpuEngine {
 	#device;
 	#raf;
 	#isRunning = false;
+	#isInitialized = false;
+	#onRender;
 	#meshContainers = new Map();
-	#groups = new Map();
+	#sceneRoot = null;
 	#pipelines = new Map();
 	#cameras = new Map();
 	#lights = new Map();
@@ -29,13 +36,12 @@ export class GpuEngine {
 	#textures = new Map();
 	#materials = new Map();
 	#samplers = new Map();
-	#pipelineMesh = new Map();
-
-	#extractDepthBuffer;
+	#background = null;
 
 	constructor(options) {
 		this.#canvas = options.canvas;
 		this.#context = options.canvas.getContext("webgpu");
+		this.#onRender = options.onRender;
 	}
 	async initialize(options) {
 		this.#adapter = await navigator.gpu.requestAdapter();
@@ -46,34 +52,37 @@ export class GpuEngine {
 		});
 		await this.initializeScene(options.scene);
 
-		this.renderDepthBuffer = setupExtractDepthBuffer(this.#device, this.#context);
+		this.renderDepthBuffer = setupExtractDepthBuffer(this.#device, this.#context, { shouldGammaScale: true });
 	}
 	async initializeScene(scene) {
-		this.initializeCameras(scene.cameras);
-		await this.initializeTextures(scene.textures);
-		this.initializeMaterials(scene.materials);
 		this.initializeSamplers();
-		await this.initializeMeshes(scene.meshes);
-		this.initializeGroups(scene.groups);
-		this.initializeLights(scene.lights);
-		await this.initializePipelines();
-		this.initializePipelineMeshes(scene.pipelineMeshes);
-	}
-	initializeCameras(cameras) {
-		for (const [key, camera] of Object.entries(cameras)) {
-			this.#cameras.set(key, camera);
-		}
-	}
-	async initializeTextures(textures) {
-		for (const [key, texture] of Object.entries(textures)) {
-			if (texture.image ?? texture.images) {
-				this.#textures.set(key, await uploadTexture(this.#device, texture.image ?? texture.images, { label: `${key}-texture` }));
-			} else if (texture.color) {
-				this.#textures.set(key, createColorTexture(this.#device, { color: texture.color, label: `${key}-texture` }));
-			}
-		}
 
+		this.initializeGroup(scene.sceneRoot, 0);
 		//default textures
+		this.initDepthTexture();
+		this.#textures.set(PLACEHOLDER_TEXTURE, createColorTexture(this.#device, { label: "placeholder-texture" }));
+
+		this.#shadowMaps.set("placeholder", this.#device.createTexture({
+			label: "placeholder-depth-texture",
+			size: { width: 1, height: 1, depthOrArrayLayers: 1 },
+			format: "depth32float",
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+		}));
+
+		await this.initializePipelines();
+		this.#isInitialized = true;
+	}
+	initializeCameras(camera) {
+		this.#cameras.set(camera.name, camera);
+	}
+	initializeTexture(texture) {
+		if (texture.image ?? texture.images) {
+			this.#textures.set(texture.name, uploadTexture(this.#device, texture.image ?? texture.images, { label: `${texture.name}-texture` }));
+		} else if (texture.color) {
+			this.#textures.set(texture.name, createColorTexture(this.#device, { color: texture.color, label: `${texture.name}-texture` }));
+		}
+	}
+	initDepthTexture() {
 		this.#textures.set(DEPTH_TEXTURE, this.#device.createTexture({
 			label: "depth-texture",
 			size: {
@@ -82,15 +91,11 @@ export class GpuEngine {
 				depthOrArrayLayers: 1
 			},
 			format: "depth32float",
-			usage: GPUTextureUsage.RENDER_ATTACHMENT
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
 		}));
-
-		this.#textures.set(PLACEHOLDER_TEXTURE, createColorTexture(this.#device, { label: "placeholder-texture" }));
 	}
-	initializeMaterials(materials) {
-		for (const [key, material] of Object.entries(materials)) {
-			this.#materials.set(key, material);
-		}
+	initializeMaterial(material) {
+		this.#materials.set(material.name, material);
 	}
 	initializeSamplers() {
 		this.#samplers.set(DEFAULT_SAMPLER, this.#device.createSampler({
@@ -98,6 +103,12 @@ export class GpuEngine {
 			addressModeV: "repeat",
 			magFilter: "linear",
 			minFilter: "linear"
+		}));
+		this.#samplers.set(DEFAULT_NEAREST_SAMPLER, this.#device.createSampler({
+			addressModeU: "repeat",
+			addressModeV: "repeat",
+			magFilter: "nearest",
+			minFilter: "nearest"
 		}));
 		this.#samplers.set(DEFAULT_SHADOW_SAMPLER, this.#device.createSampler({
 			label: "shadow-map-default-sampler",
@@ -114,32 +125,33 @@ export class GpuEngine {
 		const { vertexBuffer, indexBuffer } = uploadMesh(this.#device, mesh, { label: `${key}-mesh` });
 		this.#meshContainers.set(mesh, { mesh, vertexBuffer, indexBuffer });
 	}
-	initializeMeshes(meshes) {
-		for (const [key, mesh] of Object.entries(meshes)) {
-			this.initializeMesh(mesh, key);
-		}
-	}
-	initializeGroups(groups) {
-		for (const [key, group] of Object.entries(groups)) {
-			this.initializeGroup(group, key);
-		}
-	}
 	initializeGroup(group, key) {
-		for (const child of group.children) {
-			if (child instanceof Mesh) {
+		for (let i = 0; i < group.children.length; i++) {
+			const child = group.children[i];
+			if (child instanceof Camera){
+				this.initializeCameras(child);
+			} else if(child instanceof Mesh) {
 				this.initializeMesh(child);
+			} else if(child instanceof Light){
+				this.initializeLight(child, `${key}-${i}`);
 			} else if (child instanceof Group) {
-				this.initializeGroup(child);
+				this.initializeGroup(child, `${key}-${i}`);
+			} else if (child instanceof Material){
+				this.initializeMaterial(child);
+			} else if (child.entity === "texture"){
+				this.initializeTexture(child);
+			} else if (child.entity === "background"){
+				this.initializeBackground(child);
+			} else {
+				throw new Error(`Don't know what this entity is ${JSON.stringify(child)}`)
 			}
 		}
-		this.#groups.set(key, group);
+		this.#sceneRoot = group;
 	}
-	initializeLights(lights) {
-		for (const [key, light] of Object.entries(lights)) {
-			this.#lights.set(key, light)
-		}
+	initializeLight(light, key) {
+		this.#lights.set(key, light)
 
-		for (const key of this.#lights.keys()) {
+		if(light.castsShadow){
 			this.#shadowMaps.set(key, this.#device.createTexture({
 				label: `shadow-map-${key}`,
 				size: {
@@ -151,12 +163,6 @@ export class GpuEngine {
 				usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
 			}));
 		}
-		this.#shadowMaps.set("placeholder", this.#device.createTexture({
-			label: "placeholder-depth-texture",
-			size: { width: 1, height: 1, depthOrArrayLayers: 1 },
-			format: "depth32float",
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
-		}));
 	}
 	async initializePipelines() {
 		{
@@ -184,46 +190,7 @@ export class GpuEngine {
 			});
 		}
 		{
-			const vertexBufferDescriptor = [{
-				attributes: [
-					{
-						shaderLocation: 0,
-						offset: 0,
-						format: "float32x2"
-					}
-				],
-				arrayStride: 8,
-				stepMode: "vertex"
-			}];
-
-			const shaderModule = await uploadShader(this.#device, "./shaders/space-background.wgsl");
-
-			const pipelineDescriptor = {
-				label: "background-pipeline",
-				vertex: {
-					module: shaderModule,
-					entryPoint: "vertex_main",
-					buffers: vertexBufferDescriptor
-				},
-				fragment: {
-					module: shaderModule,
-					entryPoint: "fragment_main",
-					targets: [
-						{ format: "rgba8unorm" }
-					]
-				},
-				primitive: {
-					topology: "triangle-list"
-				},
-				depthStencil: {
-					depthWriteEnabled: true,
-					depthCompare: "less-equal",
-					format: "depth32float"
-				},
-				layout: "auto"
-			};
-
-			const pipeline = this.#device.createRenderPipeline(pipelineDescriptor);
+			const pipeline = await getBackgroundPipeline(this.#device);
 
 			this.#pipelines.set("background", {
 				pipeline: pipeline,
@@ -235,14 +202,20 @@ export class GpuEngine {
 			});
 		}
 	}
-	initializePipelineMeshes(pipelineMeshes) {
-		for (const { pipeline, meshKey } of pipelineMeshes) {
-			if (this.#pipelineMesh.has(pipeline)) {
-				this.#pipelineMesh.get(pipeline).push(meshKey);
-			} else {
-				this.#pipelineMesh.set(pipeline, [meshKey]);
-			}
+	initializeBackground(background) {
+		if (background) {
+			const mesh = new Mesh(screenTri()).useAttributes(["positions"]);
+			const { vertexBuffer, indexBuffer } = uploadMesh(this.#device, mesh, { label: `background-tri-mesh` });
+			this.#meshContainers.set(mesh, { mesh, vertexBuffer, indexBuffer });
+			this.#background = {
+				mesh,
+				environmentMap: background.environmentMap,
+				sampler: background.sampler === "nearest" ? DEFAULT_NEAREST_SAMPLER : DEFAULT_SAMPLER
+			};
 		}
+	}
+	updateCanvasSize() {
+		this.initDepthTexture();
 	}
 	start() {
 		this.#isRunning = true;
@@ -266,21 +239,19 @@ export class GpuEngine {
 	}
 	setMainSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh) {
 		const scene = {
-			viewMatrix: camera.getViewMatrix(),
-			projectionMatrix: camera.getProjectionMatrix(),
+			viewMatrix: camera.viewMatrix, //TODO: probably needs transpose
+			projectionMatrix: camera.projectionMatrix, //TODO: probably needs transpose
 			modelMatrix: getTranspose(mesh.modelMatrix, [4, 4]), //change to col major
-			worldMatrix: mesh.worldMatrix,
-			normalMatrix: getTranspose(
-				getInverse(
+			worldMatrix: getTranspose(mesh.worldMatrix, [4, 4]), //change to col major
+			normalMatrix: getInverse(
 					trimMatrix(
 						multiplyMatrix(mesh.worldMatrix, [4, 4], mesh.modelMatrix, [4, 4]),
 						[4, 4],
 						[3, 3]
 					),
 					[3, 3]
-				),
-				[3, 3]),
-			cameraPosition: camera.getPosition()
+				), //also col major but needs a transpose that cancels out
+			cameraPosition: camera.position //TODO: probably needs a transform...
 		};
 
 		const sceneData = packStruct(scene, [
@@ -368,15 +339,16 @@ export class GpuEngine {
 			.map(([key, value]) => {
 				const shadowMap = shadowMaps.get(key);
 				const shadowMapAspectRatio = shadowMap.width / shadowMap.height;
+				const combinedModelMatrix = multiplyMatrix(value.worldMatrix, [4,4], value.modelMatrix, [4,4]);
 
 				return {
 					typeInt: value.typeInt,
-					position: value.position,
-					direction: value.direction,
+					position: multiplyMatrixVector(combinedModelMatrix, value.position, 4),
+					direction: multiplyMatrixVector(combinedModelMatrix, value.direction, 4),
 					color: value.color,
 					shadowMap,
-					projectionMatrix: shadowMap ? getLightProjectionMatrix(shadowMapAspectRatio) : getEmptyMatrix([4, 4]),
-					viewMatrix: shadowMap ? getLightViewMatrix(value.direction) : getEmptyMatrix([4, 4]),
+					projectionMatrix: shadowMap ? getLightProjectionMatrix(shadowMapAspectRatio) : getEmptyMatrix([4, 4]), //probably needs transpose
+					viewMatrix: shadowMap ? getLightViewMatrix(value.direction) : getEmptyMatrix([4, 4]), //probably needs transpose
 					castsShadow: value.castsShadow ? 1 : 0,
 					shadowMapIndex: (value.castsShadow && shadowMap) ? shadowMapIndex++ : -1
 				};
@@ -511,13 +483,17 @@ export class GpuEngine {
 
 		passEncoder.setBindGroup(0, sceneBindGroup);
 	}
-	setBackgroundBindGroups(passEncoder, bindGroupLayouts, camera, mesh) {
-		this.setBackgroundSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh);
+	setBackgroundBindGroups(passEncoder, bindGroupLayouts, camera) {
+		this.setBackgroundSceneBindGroup(passEncoder, bindGroupLayouts, camera);
 		this.setBackgroundTextureBindGroup(passEncoder, bindGroupLayouts);
 	}
-	setBackgroundSceneBindGroup(passEncoder, bindGroupLayouts, camera, mesh) {
-		const inverseViewMatrix = getInverse(camera.getViewMatrix(), [4, 4]);
+	setBackgroundSceneBindGroup(passEncoder, bindGroupLayouts, camera) {
+		const viewRotationOnly = camera.viewMatrix.slice();
+		viewRotationOnly[12] = 0;
+		viewRotationOnly[13] = 0;
+		viewRotationOnly[14] = 0;
 
+		const inverseViewMatrix = getInverse(viewRotationOnly, [4, 4])
 		const sceneBuffer = this.#device.createBuffer({
 			size: inverseViewMatrix.byteLength,
 			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -544,10 +520,10 @@ export class GpuEngine {
 	}
 	setBackgroundTextureBindGroup(passEncoder, bindGroupLayouts) {
 		const textureBindGroup = this.#device.createBindGroup({
-			layout: bindGroupLayouts.get("material"),
+			layout: bindGroupLayouts.get("materials"),
 			entries: [
-				{ binding: 0, resource: this.#samplers.get("main") },
-				{ binding: 1, resource: this.#textures.get("space").createView({ dimension: "cube" }) },
+				{ binding: 0, resource: this.#samplers.get(this.#background.sampler) },
+				{ binding: 1, resource: this.#textures.get(this.#background.environmentMap).createView({ dimension: "cube" }) },
 			]
 		});
 		passEncoder.setBindGroup(1, textureBindGroup);
@@ -556,6 +532,7 @@ export class GpuEngine {
 		this.renderShadowMaps();
 		//this.renderDepthBuffer(this.#shadowMaps.get("light1").createView());
 		this.renderScene();
+		this.#onRender?.();
 	}
 
 	renderShadowMaps() {
@@ -583,7 +560,7 @@ export class GpuEngine {
 					for (const child of meshOrGroup.children) {
 						renderRecursive(child)
 					}
-				} else {
+				} else if(meshOrGroup instanceof Group){
 					const shadowMap = this.#shadowMaps.get(key);
 					const meshContainer = this.#meshContainers.get(meshOrGroup);
 
@@ -593,10 +570,8 @@ export class GpuEngine {
 					passEncoder.drawIndexed(meshContainer.mesh.indices.length);
 				}
 			}
-			for (const meshName of this.#pipelineMesh.get("main")) {
-				const group = this.#groups.get(meshName);
-				renderRecursive(group);
-			}
+
+			renderRecursive(this.#sceneRoot);
 
 			passEncoder.end();
 			isFirstPass = false;
@@ -610,31 +585,30 @@ export class GpuEngine {
 		});
 
 		const camera = this.#cameras.get("main");
-		let isFirstPass = true;
 
-		const depthView = this.#textures.get(DEPTH_TEXTURE).createView();
+		const depthView = this.#textures.get(DEPTH_TEXTURE).createView({ label: "depth-texture-view"});
+		const colorView = this.#context.getCurrentTexture().createView({ label: "color-texture-view"});
 
-		for (const [pipelineName, meshNames] of this.#pipelineMesh.entries()) {
+		{
 			const passEncoder = commandEncoder.beginRenderPass({
-				label: `${pipelineName}-render-pass`,
+				label: `main-render-pass`,
 				colorAttachments: [
 					{
 						storeOp: "store",
-						loadOp: isFirstPass ? "clear" : "load",
+						loadOp: "clear",
 						clearValue: { r: 0.1, g: 0.3, b: 0.8, a: 1.0 },
-						view: this.#context.getCurrentTexture().createView()
+						view: colorView
 					}
 				],
 				depthStencilAttachment: {
 					view: depthView,
 					depthClearValue: 1.0,
 					depthStoreOp: "store",
-					depthLoadOp: isFirstPass ? "clear" : "load"
+					depthLoadOp: "clear"
 				}
 			});
 
-			const pipelineContainer = this.#pipelines.get(pipelineName);
-
+			const pipelineContainer = this.#pipelines.get("main");
 			passEncoder.setPipeline(pipelineContainer.pipeline);
 
 			const renderRecursive = (meshOrGroup) => {
@@ -642,7 +616,7 @@ export class GpuEngine {
 					for (const child of meshOrGroup.children) {
 						renderRecursive(child)
 					}
-				} else {
+				} else if(meshOrGroup instanceof Mesh) {
 					const meshContainer = this.#meshContainers.get(meshOrGroup);
 
 					pipelineContainer.bindMethod(passEncoder, pipelineContainer.bindGroupLayouts, camera, meshContainer.mesh, this.#lights, this.#shadowMaps);
@@ -652,16 +626,43 @@ export class GpuEngine {
 				}
 			}
 
-			for (const meshName of meshNames) {
-				const group = this.#groups.get(meshName);
-				renderRecursive(group);
-			}
+			renderRecursive(this.#sceneRoot);
 
 			passEncoder.end();
-			isFirstPass = false;
+		}
+		if(this.#background){
+			const passEncoder = commandEncoder.beginRenderPass({
+				label: `background-render-pass`,
+				colorAttachments: [
+					{
+						storeOp: "store",
+						loadOp: "load",
+						view: colorView
+					}
+				],
+				depthStencilAttachment: {
+					view: depthView,
+					depthStoreOp: "store",
+					depthLoadOp: "load"
+				}
+			});
+
+			const pipelineContainer = this.#pipelines.get("background");
+			passEncoder.setPipeline(pipelineContainer.pipeline);
+				
+			const meshContainer = this.#meshContainers.get(this.#background.mesh);
+
+			pipelineContainer.bindMethod(passEncoder, pipelineContainer.bindGroupLayouts, camera, meshContainer.mesh, this.#lights, this.#shadowMaps);
+			passEncoder.setVertexBuffer(0, meshContainer.vertexBuffer);
+			passEncoder.setIndexBuffer(meshContainer.indexBuffer, "uint16");
+			passEncoder.drawIndexed(meshContainer.mesh.indices.length);
+
+			passEncoder.end();
 		}
 
 		this.#device.queue.submit([commandEncoder.finish()]);
+
+		//this.renderDepthBuffer(depthView);
 	}
 
 	get cameras() {
@@ -669,5 +670,8 @@ export class GpuEngine {
 	}
 	get isRunning() {
 		return this.#isRunning;
+	}
+	get isInitialized() {
+		return this.#isInitialized;
 	}
 }

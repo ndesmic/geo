@@ -13,45 +13,35 @@
 	</head>
 	<body>
 		<h1>Geo</h1>
-		<wc-geo>
-			<geo-camera key="main" position="0, 0, -2"></geo-camera>
-
-			<geo-texture key="marble" src="./img/marble-white/marble-white-base.jpg"></geo-texture>
-			<geo-texture key="marble-roughness" src="./img/marble-white/marble-white-roughness.jpg"></geo-texture>
-			<geo-texture key="red-fabric" src="./img/red-fabric/red-fabric-base.jpg"></geo-texture>
-			<geo-texture key="red-fabric-roughness" src="./img/red-fabric/red-fabric-roughness.jpg"></geo-texture>
-			<geo-texture key="gold" color="0, 0, 0, 1"></geo-texture>
-
-			<geo-material key="marble" roughness-map="marble-roughness" albedo-map="marble"></geo-material>
-			<geo-material key="red-fabric" roughness-map="red-fabric-roughness" albedo-map="red-fabric"></geo-material>
-			<geo-material key="gold" roughness="0.2" metalness="1" base-reflectance="1.059, 0.773, 0.307" albedo-map="gold"></geo-material>
-
-			<geo-group key="teapot-rug-0" pipeline="main" rotate="0, 1.5707963267948966, 0">
-			<geo-group key="teapot-rug-1" rotate="1.5707963267948966, 0, 0">
-				<geo-mesh 
-					key="teapot" 
-					normalize
-					bake-transforms 
-					reverse-winding 
-					src="./objs/teapot.obj" 
-					resize-uvs="2" 
-					material="gold" 
-					attributes="positions, normals, uvs">
-				</geo-mesh>
-				<geo-surface-grid 
-					key="rug" 
-					row-count="2" 
-					col-count="2" 
-					translate="0, -0.25, 0" 
-					bake-transforms 
-					material="red-fabric" 
-					attributes="positions, normals, uvs">
-				</geo-surface-grid>
-			</geo-group>
-			</geo-group>
-			
-			<geo-light key="light1" type="directional" color="1, 1, 1, 1" direction="-1, 0, 0" casts-shadow></geo-light>
-		</wc-geo>
-		<script src="js/components/wc-geo.js" type="module"></script>
+        <h2>Geo demo</h2>
+        <a href="./demo.html">Demo</a>
+        <h2>Geo example tests</h2>
+        <ul class="display-list">
+            <li>
+                <a href="./visual-tests/should-render-background/should-render-background.html">Should render background</a>
+            </li>
+            <li>
+                <a href="./visual-tests/should-render-teapot/should-render-teapot.html">Should render teapot</a>
+            </li>
+            <li>
+                <a href="./visual-tests/should-resize-canvas/should-resize-canvas.html">Should resize canvas</a>
+            </li>
+            <li>
+                <a href="./visual-tests/should-transform-group-light/should-transform-group-light-nested.html">Should transform group light nested</a>
+            </li>
+            <li>
+                <a href="./visual-tests/should-transform-group-camera/should-transform-group-camera.html">Should transform group camera</a>
+            </li>
+            <li>
+                <ul>
+                    <li>
+                        <a href="./visual-tests/should-transform-group-mesh/should-transform-group-mesh.html">Should transform group mesh</a>
+                    </li>
+                    <li>
+                        <a href="./visual-tests/should-transform-group-mesh/should-transform-group-mesh-nested.html">Should transform group mesh nested</a>
+                    </li>
+                </ul>
+            </li>
+        </ul>
 	</body>
 </html>

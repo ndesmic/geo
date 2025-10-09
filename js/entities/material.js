@@ -14,6 +14,9 @@ export class Material {
 	#name;
 
 	constructor(options){
+		if(!options.name){
+			throw new Error("Material must have a name");
+		}
 		this.name = options.name;
 
 		this.useRoughnessMap = options.useRoughnessMap ?? false;

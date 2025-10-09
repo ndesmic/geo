@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Geo - Should transform group mesh</title>
+	</head>
+	<body>
+		<h1>Geo - Should transform group mesh</h1>
+		<wc-geo height="480" width="720">
+			<geo-camera name="main" position="0, 0, -2"></geo-camera>
+
+			<geo-texture name="red-fabric" src="../../img/red-fabric/red-fabric-base.jpg"></geo-texture>
+			<geo-texture name="red-fabric-roughness" src="../../img/red-fabric/red-fabric-roughness.jpg"></geo-texture>
+			<geo-texture name="gold" color="0, 0, 0, 1"></geo-texture>
+
+			<geo-material name="red-fabric" roughness-map="red-fabric-roughness" albedo-map="red-fabric"></geo-material>
+			<geo-material name="gold" roughness="0.2" metalness="1" base-reflectance="1.059, 0.773, 0.307" albedo-map="gold"></geo-material>
+
+			<geo-texture name="debug-background" srcs="../../img/debug-cube/red-right.png, ../../img/debug-cube/red-left.png, ../../img/debug-cube/green-top.png, ../../img/debug-cube/green-bottom.png, ../../img/debug-cube/blue-back.png, ../../img/debug-cube/blue-front.png"></geo-texture>
+			<geo-background 
+				environment-map="debug-background"
+				sampler="nearest"
+			></geo-background>
+
+			<geo-group rotate="1.5707963267948966, 0, 0">
+				<geo-mesh 
+					name="teapot" 
+					normalize
+					bake-transforms 
+					reverse-winding 
+					src="../../objs/teapot.obj" 
+					resize-uvs="2" 
+					material="gold" 
+					attributes="positions, normals, uvs">
+				</geo-mesh>
+				<geo-surface-grid 
+					name="rug" 
+					row-count="2" 
+					col-count="2" 
+					translate="0, -0.25, 0" 
+					bake-transforms 
+					material="red-fabric" 
+					attributes="positions, normals, uvs">
+				</geo-surface-grid>
+			</geo-group>
+			
+			<geo-light type="directional" color="1, 1, 1, 1" direction="0, -1, 1" casts-shadow></geo-light>
+		</wc-geo>
+		<script src="../../js/components/wc-geo.js" type="module"></script>
+		<script>
+			const geo = document.querySelector("wc-geo");
+			geo.onRender = () => {
+				if (!document.querySelector(".rendered")) {
+					const div = document.createElement("div");
+					div.className = "rendered";
+					div.textContent = "rendered";
+					document.body.append(div);
+				}
+			}
+		</script>
+	</body>
+</html>
