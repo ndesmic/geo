@@ -1,17 +1,17 @@
 export function getRotationXMatrix(theta) {
 	return new Float32Array([
 		1, 0, 0, 0,
-		0, Math.cos(theta), -Math.sin(theta), 0,
-		0, Math.sin(theta), Math.cos(theta), 0,
+		0, Math.cos(theta), Math.sin(theta), 0,
+		0, -Math.sin(theta), Math.cos(theta), 0,
 		0, 0, 0, 1
 	]);
 }
 
 export function getRotationYMatrix(theta) {
 	return new Float32Array([
-		Math.cos(theta), 0, Math.sin(theta), 0,
+		Math.cos(theta), 0, -Math.sin(theta), 0,
 		0, 1, 0, 0,
-		-Math.sin(theta), 0, Math.cos(theta), 0,
+		Math.sin(theta), 0, Math.cos(theta), 0,
 		0, 0, 0, 1
 	]);
 }
@@ -76,14 +76,14 @@ export function getEmptyMatrix(shape){
  * @param {number} size
  * @returns 
  */
-export function multiplyMatrixVector(vector, matrix, size) {
+export function multiplyMatrixVector(matrix, vector, size) {
 	const newVector = new Float32Array(size);
-	for(let i = 0; i < size; i++){
+	for(let row = 0; row < size; row++){
 		let sum = 0;
-		for(let j = 0; j < size; j++){
-			sum += vector[j] * matrix[i * size + j] 
+		for(let col = 0; col < size; col++){
+			sum += vector[col] * matrix[row * size + col] 
 		}
-		newVector[i] = sum;
+		newVector[row] = sum;
 	}
 
 	return newVector;
@@ -141,11 +141,19 @@ export function normalizeVector(vec) {
 	return divideVector(vec, getVectorMagnitude(vec));
 }
 
-export function crossVector(a, b) {
+export function crossVector(a, b, isHomogeneous = false) {
+	if(isHomogeneous){
+		return new Float32Array([
+			a[1] * b[2] - a[2] * b[1],
+			a[2] * b[0] - a[0] * b[2],
+			a[0] * b[1] - a[1] * b[0],
+			0
+		]);
+	}
 	return new Float32Array([
 		a[1] * b[2] - a[2] * b[1],
 		a[2] * b[0] - a[0] * b[2],
-		a[0] * b[1] - a[1] * b[0]
+		a[0] * b[1] - a[1] * b[0],
 	]);
 }
 
@@ -175,10 +183,10 @@ export function reflectVector(vec, normal) {
 	];
 }
 
-export const UP = [0, 1, 0];
-export const FORWARD = [0, 0, 1];
-export const BACKWARD = [0, 0, -1];
-export const RIGHT = [1, 0, 0];
+export const UP = [0, 1, 0, 0];
+export const FORWARD = [0, 0, 1, 0];
+export const BACKWARD = [0, 0, -1, 0];
+export const RIGHT = [1, 0, 0, 0];
 
 // polygons
 export function getVectorIntersectPlane(planePoint, planeNormal, lineStart, lineEnd) {
@@ -342,15 +350,22 @@ export function getPointAtMatrix(position, target, up) {
 	];
 }
 
-export function getLookAtMatrix(position, target, up = UP) {
-	const forward = normalizeVector(subtractVector(target, position));
+/**
+ * Creates the matrix to convert world space coordinates into camera space looking a particular direction
+ * @param {Float32Array} position position of camera, homogeneous (4-value)
+ * @param {Float32Array} direction direction of camera, homogeneous (4-value)
+ * @param {Float32Array?} up direction of up, homogeneous (4-value)
+ * @returns 
+ */
+export function getWorldToCameraMatrixFromDirection(position, direction, up = UP) {
+	const forward = normalizeVector(direction);
 
 	if(Math.abs(dotVector(forward, up)) > 0.999){
 		up = Math.abs(forward[1]) < 0.999 ? UP : FORWARD;
 	}
 
-	const right = normalizeVector(crossVector(up, forward));
-	const newUp = crossVector(forward, right);
+	const right = normalizeVector(crossVector(up, forward, true));
+	const newUp = crossVector(forward, right, true);
 	
 
 	return new Float32Array([
@@ -359,6 +374,42 @@ export function getLookAtMatrix(position, target, up = UP) {
 		right[2], newUp[2], forward[2], 0,
 		-dotVector(position, right), -dotVector(position, newUp), -dotVector(position, forward), 1
 	]);
+}
+
+/**
+ * Creates the matrix to convert camera space coordinates into world space looking a particular direction
+ * @param {Float32Array} position position of camera, homogeneous (4-value)
+ * @param {Float32Array} direction direction of camera, homogeneous (4-value)
+ * @param {Float32Array?} up direction of up, homogeneous (4-value)
+ */
+export function getCameraToWorldMatrixFromDirection(position, direction, up = UP) {
+	const forward = normalizeVector(direction);
+
+	// choose a stable up if forward is (nearly) parallel to provided up
+	if (Math.abs(dotVector(forward, up)) > 0.999) {
+		up = Math.abs(forward[1]) < 0.999 ? UP : FORWARD;
+	}
+
+	const right = normalizeVector(crossVector(up, forward, true));
+	const newUp = crossVector(forward, right, true);
+
+	return new Float32Array([
+		right[0], newUp[0], forward[0], position[0],
+		right[1], newUp[1], forward[1], position[1],
+		right[2], newUp[2], forward[2], position[2],
+		0,        0,        0,         1
+	]);
+}
+
+/**
+ * Creates the matrix to convert world space coordinates into camera space looking at a particular target
+ * @param {Float32Array} position position of camera, homogeneous (4-value)
+ * @param {Float32Array} direction direction of camera, homogeneous (4-value)
+ * @param {Float32Array?} up direction of up, homogeneous (4-value)
+ * @returns 
+ */
+export function getWorldToCameraMatrixFromTarget(position, target, up = UP){
+	return getWorldToCameraMatrixFromDirection(position, subtractVector(target, position), up);
 }
 
 /**
@@ -507,6 +558,23 @@ export function trimMatrix(matrix, oldShape, newShape){
 	return result;
 }
 
+export function printMatrix(matrix, shape){
+	const output = new Array(shape[0]);
+	for(let row = 0; row <  shape[0]; row++){
+		let line = new Array(shape[1]);
+		for(let col = 0; col < shape[1]; col++){
+			line[col] = matrix[row * shape[1] + col];
+			if(line[col] < 1e-8 && line[col] > 0){
+				line[col] = "~+0"
+			} else if(line[col] > -1e-8 && line[col] < 0) {
+				line[col] = "~-0"
+			}
+		}
+		output[row] = line.join(", ");
+	}
+	return output.join("\n")
+}
+
 export function getTangentVectors(trianglePositions, triangleUVs){
 	const deltaUV = [
 		subtractVector(triangleUVs[1], triangleUVs[0]),
@@ -527,7 +595,7 @@ export function multiplyPointsByMatrix(points, pointSize, matrix){
 		const vector = new Float32Array(pointSize);
 		vector.set(points.slice(i, i + pointSize), 0);
 
-		const result = multiplyMatrixVector(vector, matrix, pointSize);
+		const result = multiplyMatrixVector(matrix, vector, pointSize);
 		outputPoints.set(result, i);
 	}
 	return outputPoints;

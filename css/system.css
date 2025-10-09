@@ -184,6 +184,22 @@ button.text-button {
 	justify-content: flex-start;
 	align-items: center;
 }
+ul.display-list,
+ol.display-list {
+	padding-inline-start: 2rem;
+
+	li {
+		list-style-type: disc;
+	}
+	li:has(ul, ol){
+		list-style-type: none;
+	}
+
+	ul,
+	ol {
+		padding-inline-start: 1rem;
+	}
+}
 .error {
 	color: var(--negative-medium);
 	background: var(--negative-light);

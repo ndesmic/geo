@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Geo</title>
+		<link rel="manifest" href="manifest.json">
+		<link rel="stylesheet" href="css/system.css">
+		<link rel="icon" href="img/icon32x32.png" type="image/png">
+		<link rel="apple-touch-icon" href="img/icon.png">
+		<meta charset="utf-8">
+		<meta name="theme-color" content="#ff6400">
+		<meta name="viewport" content="width=device-width">
+		<meta name="description" content="A Web app">
+	</head>
+	<body>
+		<h1>Geo</h1>
+		<wc-geo>
+			<geo-camera name="main" position="0, 0, -2"></geo-camera>
+
+			<geo-texture name="marble" src="./img/marble-white/marble-white-base.jpg"></geo-texture>
+			<geo-texture name="marble-roughness" src="./img/marble-white/marble-white-roughness.jpg"></geo-texture>
+			<geo-texture name="red-fabric" src="./img/red-fabric/red-fabric-base.jpg"></geo-texture>
+			<geo-texture name="red-fabric-roughness" src="./img/red-fabric/red-fabric-roughness.jpg"></geo-texture>
+			<geo-texture name="gold" color="0, 0, 0, 1"></geo-texture>
+
+			<geo-material name="marble" roughness-map="marble-roughness" albedo-map="marble"></geo-material>
+			<geo-material name="red-fabric" roughness-map="red-fabric-roughness" albedo-map="red-fabric"></geo-material>
+			<geo-material name="gold" roughness="0.2" metalness="1" base-reflectance="1.059, 0.773, 0.307" albedo-map="gold"></geo-material>
+
+			<geo-texture name="debug-background" srcs="../../img/debug-cube/red-right.png, ../../img/debug-cube/red-left.png, ../../img/debug-cube/green-top.png, ../../img/debug-cube/green-bottom.png, ../../img/debug-cube/blue-back.png, ../../img/debug-cube/blue-front.png"></geo-texture>
+			<geo-background 
+				environment-map="debug-background"
+				sampler="nearest"
+			></geo-background>
+
+			<geo-group rotate="0, 1.5707963267948966, 0">
+					<geo-mesh 
+						name="teapot" 
+						normalize
+						bake-transforms 
+						reverse-winding 
+						src="./objs/teapot.obj" 
+						resize-uvs="2" 
+						material="gold" 
+						attributes="positions, normals, uvs">
+					</geo-mesh>
+					<geo-surface-grid 
+						name="rug" 
+						row-count="2" 
+						col-count="2" 
+						translate="0, -0.25, 0" 
+						bake-transforms 
+						material="red-fabric" 
+						attributes="positions, normals, uvs">
+					</geo-surface-grid>
+					<geo-light type="directional" color="1, 1, 1, 1" direction="0, 0, 1" casts-shadow></geo-light>
+			</geo-group>
+		</wc-geo>
+		<script src="js/components/wc-geo.js" type="module"></script>
+	</body>
+</html>

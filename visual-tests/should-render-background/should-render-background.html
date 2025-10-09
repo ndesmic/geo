@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Geo - Should render background</title>
+	</head>
+	<body>
+		<h1>Geo - Should render background</h1>
+		<wc-geo height="480" width="720">
+			<geo-camera name="main" position="0, 0, -2"></geo-camera>
+
+			<!--Cubemaps defined like [+X, -X, +Y, -Y, +Z, -Z]-->
+			<geo-texture name="debug-background" srcs="../../img/debug-cube/red-right.png, ../../img/debug-cube/red-left.png, ../../img/debug-cube/green-top.png, ../../img/debug-cube/green-bottom.png, ../../img/debug-cube/blue-back.png, ../../img/debug-cube/blue-front.png"></geo-texture>
+			<geo-background 
+				environment-map="debug-background"
+				sampler="nearest"
+			></geo-background>
+		</wc-geo>
+		<script src="../../js/components/wc-geo.js" type="module"></script>
+	</body>
+</html>

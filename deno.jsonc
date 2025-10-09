@@ -1,10 +1,25 @@
 {
+  "permissions": {
+    "playwright": {
+      "env": true,
+      "sys": ["osRelease", "cpus"],
+      "read": true,
+      "write": true,
+      "run": true,
+      "net": true
+    }
+  },
+  "nodeModulesDir": "auto",
   "tasks": {
+    "dev": "deno run -A https://deno.land/std/http/file_server.ts",
     "start": "deno run -A https://deno.land/std/http/file_server.ts",
-    "test:one": "deno test ./js/utilities/buffer-utils.test.js"
+    "test:one": "deno test ./js/utilities/buffer-utils.test.js",
+    "test:visual": "deno run -P=playwright npm:playwright test --config ./visual-tests/playwright.config.js"
   },
   "imports": {
+    "@playwright/test": "npm:@playwright/test@^1.55.0",
     "@std/expect": "jsr:@std/expect@^1.0.16",
-    "@std/testing": "jsr:@std/testing@^1.0.14"
+    "@std/testing": "jsr:@std/testing@^1.0.14",
+    "playwright": "npm:playwright@^1.55.0"
   }
 }

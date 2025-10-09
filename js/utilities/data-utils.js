@@ -16,7 +16,7 @@ export function downloadBlob(blob, fileName) {
  * Loads an .obj file
  * @param {GPUDevice} device 
  * @param {string} url 
- * @param {{ color?: [number, number, number, number], reverseWinding?: boolean, label?: string }} options
+ * @param {{ color?: [number, number, number, number], reverseWinding?: boolean, name?: string }} options
  * @returns 
  */
 export async function fetchObjMesh(url, options = {}) {
@@ -25,5 +25,6 @@ export async function fetchObjMesh(url, options = {}) {
 	const objText = await response.text();
 	const objContent = loadObj(objText, { color: options.color, reverseWinding: options.reverseWinding });
 	const mesh = new Mesh(objContent);
+	mesh.name = options.name
 	return mesh;
 }	

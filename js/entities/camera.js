@@ -1,9 +1,11 @@
-import { getOrthoMatrix, getProjectionMatrix, getLookAtMatrix, UP, subtractVector } from "../utilities/vector.js";
-import { cartesianToSpherical, sphericalToCartesian } from "../utilities/math-helpers.js";
+import { getOrthoMatrix, getProjectionMatrix, getCameraToWorldMatrixFromDirection, UP, subtractVector, normalizeVector, getWorldToCameraMatrixFromDirection, multiplyMatrixVector, addVector, multiplyMatrix, printMatrix } from "../utilities/vector.js";
+import { sphericalToCartesian, cartesianToSpherical } from "../utilities/math-helpers.js";
+import { Transformable } from "./transformable.js";
 
-export class Camera {
-	#position = new Float32Array([0,0,-1]);
-	#target = new Float32Array([0,0,0]);
+export class Camera extends Transformable {
+	#name;
+	#position = new Float32Array([0,0,-1,1]);
+	#direction;
 	#screenWidth;
 	#screenHeight;
 	#near;
@@ -32,7 +34,19 @@ export class Camera {
 	 * }} camera 
 	 */
 	constructor(camera){
-		this.#position = new Float32Array(camera.position);
+		super();
+		if(!camera.name){
+			throw new Error("Camera must have a name");
+		}
+		this.name = camera.name;
+		this.position = camera.position;
+		
+		if(camera.direction){
+			this.direction = normalizeVector(camera.direction);
+		} else {
+			this.lookAt(camera.target ?? new Float32Array([0,0,0,1]));
+		}
+
 		this.#screenWidth = camera.screenWidth;
 		this.#screenHeight = camera.screenHeight;
 		this.#left = camera.left;
@@ -51,66 +65,90 @@ export class Camera {
 			throw new Error(`Missing required value for ortho projection`);
 		}
 	}
+	lookAt(target){
+		const normalizedTarget = target.length === 3
+			? new Float32Array([...target, 1])
+			: new Float32Array(target);
+		this.direction = normalizeVector(subtractVector(normalizedTarget, this.position)); 
+	}
 
 	moveTo(x, y, z){
-		this.#position = [x,y,z];
+		this.position = [x,y,z,1];
 	}
 
 	moveBy({ x = 0, y = 0, z = 0 }){
-		this.#position[0] += x; 
-		this.#position[1] += y;
-		this.#position[2] += z;
+		const result = addVector(this.position, new Float32Array([x,y,z,1]));
+		result[3] = 1; //homogenized
+		this.position = result; 
 	}
 
-	panBy({ x = 0, y = 0, z = 0 }){
-		this.#position[0] += x;
-		this.#target[0] += x;
-		this.#position[1] += y;
-		this.#target[1] += y;
-		this.#position[2] += z;
-		this.#target[2] += z;
+	panBy({ right = 0, up = 0, forward = 0 }){
+		const cameraToWorld = getCameraToWorldMatrixFromDirection(this.position, this.direction);
+
+		const delta = multiplyMatrixVector(cameraToWorld, new Float32Array([right, up, forward, 0]), 4);
+		this.position = addVector(this.position, delta); 
 	}
 
-	orbitBy({ radius = 0, lat = 0, long = 0 }){
-		const [currentLat, currentLng, r] = this.getOrbit(); 
+	orbitBy({ radius = 0, lat = 0, long = 0 }, target){
+		const [currentLat, currentLng, r] = this.getOrbit(target); 
 		const newLat = currentLat + lat;
 		const newLong = currentLng - long;
 		const newRadius = Math.max(0.1, r + radius);
-		this.#position = sphericalToCartesian([newLat, newLong, newRadius]);
+		this.position = sphericalToCartesian([newLat, newLong, newRadius]);
 	}
 
-	lookAt(x, y, z){
-		this.#target = [x,y,z];
+	getOrbit(target){
+		const homgeneousTarget = target.length === 3 ? new Float32Array([...target, 1]) : new Float32Array(target);
+	 	const targetDelta = subtractVector(this.position, homgeneousTarget);
+	 	return cartesianToSpherical(targetDelta);
 	}
 
-	getOrbit(){
-		const targetDelta = subtractVector(this.#position, this.#target);
-		return cartesianToSpherical(targetDelta);
+	get viewMatrix(){
+		const direction = multiplyMatrixVector(this.worldMatrix, this.direction, 4);
+		const position = multiplyMatrixVector(this.worldMatrix, this.position, 4);
+		return getWorldToCameraMatrixFromDirection(position, direction, UP);
 	}
 
-	getViewMatrix(){
-		return getLookAtMatrix(this.#position, this.#target, UP);
-	}
-
-	getProjectionMatrix(){
+	get projectionMatrix(){
 		return this.#isPerspective 
 			? getProjectionMatrix(this.#screenHeight, this.#screenWidth, this.#fieldOfView, this.#near, this.#far)
 			: getOrthoMatrix(this.#left, this.#right, this.#bottom, this.#top, this.#near, this.#far);
 	}
 
-	getFieldOfView(){
+	get fieldOfView() {
 		return this.#fieldOfView;
-	}
-
-	getPosition(){
-		return this.#position;
 	}
 
 	/**
 	 * 
-	 * @param {Float32Array} position 
+	 * @param {ArrayLike<number>} position 
 	 */
-	setPosition(position){
-		this.#position = position;
+	set position(val){
+		if(val.length === 3){
+			this.#position = new Float32Array([...val, 1]);
+		} else {
+			this.#position = new Float32Array(val);
+		}
+	}
+	get position(){
+		return this.#position;
+	}
+
+	set direction(val){
+		if(val.length === 3){
+			this.#direction = new Float32Array([...val, 0]);
+		} else {
+			this.#direction = new Float32Array(val);
+		}
+	}
+	get direction(){
+		return this.#direction;
+	}
+
+	set name(val){
+		this.#name = val;
+	}
+	get name(){
+		return this.#name;
 	}
 }

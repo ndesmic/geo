@@ -1,8 +1,9 @@
+import { Transformable } from "./transformable.js";
 /**
  * @typedef {"point" | "directional" | "spot" } LightType
  */
 
-export class Light {
+export class Light extends Transformable {
 	/**@type {LightType} */
 	#type;
 	#position;
@@ -11,11 +12,12 @@ export class Light {
 	#castsShadow;
 
 	constructor(light) {
-		this.#type = light.type ?? "point";
-		this.#position = light.position ?? [0, 0, 0, 0];
-		this.#direction = light.direction ?? [0, 0, 0, 0];
-		this.#color = light.color ?? [1, 1, 1, 1];
-		this.#castsShadow = light.castsShadow ?? false;
+		super();
+		this.type = light.type ?? "point";
+		this.position = light.position ?? [0, 0, 0, 1];
+		this.direction = light.direction ?? [0, 0, 0, 0];
+		this.color = light.color ?? [1, 1, 1, 1];
+		this.castsShadow = light.castsShadow ?? false;
 	}
 
 	static getLightInt(lightType) {
@@ -27,25 +29,42 @@ export class Light {
 		}
 	}
 
+	/**
+	 * @param {string} val 
+	 */
 	set type(val) {
-		this.#type = new Float32Array(val);
+		this.#type = val;
 	}
+	/**
+	 * @returns {string}
+	 */
 	get type() {
 		return this.#type;
 	}
+	/**
+	 * @returns {number}
+	 */
 	get typeInt() {
 		return Light.getLightInt(this.#type);
 	}
 
 	set position(val) {
-		this.#position = new Float32Array(val);
+		if(val.length === 3){
+			this.#position = new Float32Array([...val, 1]);
+		} else {
+			this.#position = new Float32Array(val);
+		}
 	}
 	get position() {
 		return this.#position;
 	}
 
 	set direction(val) {
-		this.#direction = new Float32Array(val);
+		if(val.length === 3){
+			this.#direction = new Float32Array([...val, 0]);
+		} else {
+			this.#direction = new Float32Array(val);
+		}
 	}
 	get direction() {
 		return this.#direction;

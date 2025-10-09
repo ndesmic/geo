@@ -21,7 +21,9 @@ Any web server can be used to serve the code however Deno is used for tasks and 
 ### Specs
 
 - Left-hand coordinate system
+    - Z into screen
 - CCW winding order
+- Right handed rotations
 
 ### Controls
 
