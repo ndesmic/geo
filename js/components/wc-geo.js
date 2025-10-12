@@ -166,7 +166,7 @@ export class WcGeo extends HTMLElement {
 		if (!this.#engineReady) return;
 		e.preventDefault();
 		const delta = e.deltaY / 1000;
-		this.engine.cameras.get("main").orbitBy({ radius: delta });
+		this.engine.cameras.get("main").orbitBy({ radius: delta }, [0,0,0]);
 	}
 	onRKeyPressed(e) {
 		if (!e.shiftKey) return; //record function is shift+R
