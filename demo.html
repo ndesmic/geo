@@ -16,23 +16,20 @@
 		<wc-geo>
 			<geo-camera name="main" position="0, 0, -2"></geo-camera>
 
-			<geo-texture name="marble" src="./img/marble-white/marble-white-base.jpg"></geo-texture>
-			<geo-texture name="marble-roughness" src="./img/marble-white/marble-white-roughness.jpg"></geo-texture>
 			<geo-texture name="red-fabric" src="./img/red-fabric/red-fabric-base.jpg"></geo-texture>
 			<geo-texture name="red-fabric-roughness" src="./img/red-fabric/red-fabric-roughness.jpg"></geo-texture>
-			<geo-texture name="gold" color="0, 0, 0, 1"></geo-texture>
+			<geo-texture name="green" color="0, 1, 0, 1"></geo-texture>
 
-			<geo-material name="marble" roughness-map="marble-roughness" albedo-map="marble"></geo-material>
 			<geo-material name="red-fabric" roughness-map="red-fabric-roughness" albedo-map="red-fabric"></geo-material>
-			<geo-material name="gold" roughness="0.2" metalness="1" base-reflectance="1.059, 0.773, 0.307" albedo-map="gold"></geo-material>
+			<geo-material name="green" roughness="0.2" metalness="0" albedo-map="green"></geo-material>
 
-			<geo-texture name="debug-background" srcs="../../img/debug-cube/red-right.png, ../../img/debug-cube/red-left.png, ../../img/debug-cube/green-top.png, ../../img/debug-cube/green-bottom.png, ../../img/debug-cube/blue-back.png, ../../img/debug-cube/blue-front.png"></geo-texture>
+			<geo-texture name="debug-background" colors="1,0,0,1; 0.25,0,0,1; 0,1,0,1; 0,0.25,0,1; 0,0,1,1; 0,0,0.25,1"></geo-texture>
 			<geo-background 
 				environment-map="debug-background"
 				sampler="nearest"
 			></geo-background>
 
-			<geo-group rotate="0, 1.5707963267948966, 0">
+			<geo-group>
 					<geo-mesh 
 						name="teapot" 
 						normalize
@@ -40,7 +37,7 @@
 						reverse-winding 
 						src="./objs/teapot.obj" 
 						resize-uvs="2" 
-						material="gold" 
+						material="green" 
 						attributes="positions, normals, uvs">
 					</geo-mesh>
 					<geo-surface-grid 
@@ -52,8 +49,8 @@
 						material="red-fabric" 
 						attributes="positions, normals, uvs">
 					</geo-surface-grid>
-					<geo-light type="directional" color="1, 1, 1, 1" direction="0, 0, 1" casts-shadow></geo-light>
 			</geo-group>
+			<geo-light type="directional" color="1, 1, 1, 1" direction="0, -1, 1" casts-shadow></geo-light>
 		</wc-geo>
 		<script src="js/components/wc-geo.js" type="module"></script>
 	</body>

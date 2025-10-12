@@ -1,3 +1,4 @@
+//@ts-check
 // align / size https://www.w3.org/TR/WGSL/#alignment-and-size
 /**@type {Record<string, [number,number]>}  */
 /**@constant */
@@ -49,22 +50,34 @@ const gpuTypeAlignSize = {
 /**
  * 
  * @param {Float32Array} buffer 
- * @param {Array} attributes 
+ * @param {ArrayLike | undefined} attributes 
  * @param {number} index 
  * @param {number} attributeOffset offset in terms of indices (not bytes, assume f32)
- * @param {number} vertexLength number of values per vertex 
+ * @param {number | undefined} vertexLength number of values per vertex 
  * @param {number} elementStride number of indicies per element
  * @returns 
  */
 function packAttribute(buffer, attributes, index, attributeOffset, vertexLength, elementStride){
-	if(!vertexLength) return;
+	if(!vertexLength || !attributes) return;
 	for (let j = 0; j < vertexLength; j++) {
 		buffer[index * elementStride + attributeOffset + j] = attributes[index * vertexLength + j]
 	}
 }
 /**
  * 
- * @param {{ positions: Float32Array, colors?: Float32Array, uvs?: Float32Array, normals?: Float32Array, vertexLength: number, positionSize?: number, colorSize?: number, uvSize?: number, normalSize?: number, tangentSize?: number }} meshAttributes 
+ * @param {{ 
+ * 	positions: Float32Array, 
+ *  colors?: Float32Array, 
+ *  uvs?: Float32Array, 
+ *  normals?: Float32Array, 
+ *  tangents?: Float32Array,
+ *  vertexLength: number, 
+ *  positionSize?: number, 
+ *  colorSize?: number, 
+ *  uvSize?: number, 
+ *  normalSize?: number, 
+ *  tangentSize?: number 
+ * }} mesh 
  */
 export function packMesh(mesh){
 	const stride = (mesh.positionSize ?? 0) + (mesh.colorSize ?? 0) + (mesh.uvSize ?? 0) + (mesh.normalSize ?? 0) + (mesh.tangentSize ?? 0); //stride in terms of indices (not bytes, assume F32s)
@@ -88,14 +101,17 @@ export function packMesh(mesh){
 }
 
 /**
- * @typedef {[string,GpuType]} Prop
+ * @typedef {[string|((object)=>string),GpuType]} Prop
  * @typedef {Prop[]} Schema
+ * 
  * @param {object} data 
- * @param {Schema} schema 
+ * @param {Schema} schema
+ * @param {{ minSize?: number, buffer?: ArrayBuffer, offset?: number }} options
  */
-export function packStruct(data, schema, minSize, buffer, offset = 0){
-	const { offsets, totalSize } = getAlignments(schema.map(s => s[1]),	minSize);
-	const outBuffer = buffer ?? new ArrayBuffer(totalSize);
+export function packStruct(data, schema, options = {}){
+	const offset = options.offset ?? 0;
+	const { offsets, totalSize } = getAlignments(schema.map(s => s[1]),	options.minSize ?? 0);
+	const outBuffer = options.buffer ?? new ArrayBuffer(totalSize);
 	const dataView = new DataView(outBuffer);
 
 	for(let i = 0; i < schema.length; i++){
@@ -180,14 +196,26 @@ export function packStruct(data, schema, minSize, buffer, offset = 0){
 	return outBuffer;
 }
 
-export function packArray(data, schema, minSize){
-	const { totalSize: structSize } = getAlignments(schema.map(s => s[1]), minSize);
+/**
+ * 
+ * @param {object} data 
+ * @param {Prop[]} schema 
+ * @param {{ minSize?: number, offset?: number, buffer?: ArrayBuffer }} options 
+ * @returns 
+ */
+export function packArray(data, schema, options = {}){
+	const offset = options.offset ?? 0;
+	const { totalSize: structSize } = getAlignments(schema.map(s => s[1]), options.minSize ?? 0);
 	const totalSize = structSize * data.length;
-	const buffer = new ArrayBuffer(totalSize);
+	const outBuffer = options.buffer ?? new ArrayBuffer(totalSize);
 	for(let i = 0; i < data.length; i++){
-		packStruct(data[i], schema, minSize, buffer, i * structSize);
+		packStruct(data[i], schema, {
+			minSize: options.minSize, 
+			buffer: outBuffer, 
+			offset: offset + i * structSize
+		});
 	}
-	return buffer;
+	return outBuffer;
 }
 
 /**

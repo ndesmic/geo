@@ -7,27 +7,33 @@ import { loadImage } from "../utilities/image-utils.js";
 import { fetchObjMesh } from "./data-utils.js";
 import { surfaceGrid, quad, cube } from "./mesh-generator.js";
 
-function parseVector(text, length = 4, defaultValue = null) {
-	return text
+export function parseFloatVector(text, length = 4, defaultValue = null) {
+	return text?.trim()
 		? text.split(",").map(x => parseFloat(x.trim())).slice(0, length)
 		: defaultValue
 }
 
-function parseIntOrDefault(text, defaultValue = null) {
-	return text
+export function parseIntOrDefault(text, defaultValue = null) {
+	return text?.trim()
 		? parseInt(text, 10)
 		: defaultValue;
 }
 
-function parseFloatOrDefault(text, defaultValue = null) {
-	return text
+export function parseFloatOrDefault(text, defaultValue = null) {
+	return text?.trim()
 		? parseFloat(text)
 		: defaultValue;
 }
 
-function parseListOrDefault(text, defaultValue = null) {
-	return text
+export function parseListOrDefault(text, defaultValue = null) {
+	return text?.trim()
 		? text.split(",").map(x => x.trim())
+		: defaultValue
+}
+
+export function parseListOfFloatVector(text, length, defaultValue){
+	return text?.trim()
+		? text.split(";").map(v => v.trim().split(",").map(x => parseFloat(x.trim())).slice(0, length))
 		: defaultValue
 }
 
@@ -50,17 +56,17 @@ function updateMeshAttributes(meshEl, mesh) {
 		mesh.useAttributes(attributes);
 	}
 
-	const translate = parseVector(meshEl.getAttribute("translate"), 3);
+	const translate = parseFloatVector(meshEl.getAttribute("translate"), 3);
 	if (translate) {
 		mesh.translate({ x: translate[0], y: translate[1], z: translate[2] });
 	}
 
-	const rotate = parseVector(meshEl.getAttribute("rotate"), 3);
+	const rotate = parseFloatVector(meshEl.getAttribute("rotate"), 3);
 	if (rotate) {
 		mesh.rotate({ x: rotate[0], y: rotate[1], z: rotate[2] });
 	}
 
-	const scale = parseVector(meshEl.getAttribute("scale"), 3);
+	const scale = parseFloatVector(meshEl.getAttribute("scale"), 3);
 	if (scale) {
 		mesh.scale({ x: scale[0], y: scale[1], z: scale[2] });
 	}
@@ -75,7 +81,7 @@ function updateMeshAttributes(meshEl, mesh) {
 function parseCamera(cameraEl, options = {}) {
 	return new Camera({
 		name: cameraEl.getAttribute("name"),
-		position: parseVector(cameraEl.getAttribute("position"), 3),
+		position: parseFloatVector(cameraEl.getAttribute("position"), 3),
 		screenHeight: cameraEl.getAttribute("height") ?? options.defaultHeight,
 		screenWidth: cameraEl.getAttribute("width") ?? options.defaultWidth,
 		fieldOfView: cameraEl.getAttribute("fov") ?? 90,
@@ -90,13 +96,16 @@ async function parseTexture(textureEl){
 	const src = textureEl.getAttribute("src");
 	const srcs = parseListOrDefault(textureEl.getAttribute("srcs"));
 	const color = textureEl.getAttribute("color");
+	const colors = textureEl.getAttribute("colors");
 	let value;
 	if (src) {
 		value = { entity: "texture", image: await loadImage(src), name  };
 	} else if(srcs){
 		value = { entity: "texture", images: await Promise.all(srcs.map(s => loadImage(s))), name } 
 	} else if (color) {
-		value = { entity: "texture", color: parseVector(color, 4), name };
+		value = { entity: "texture", color: parseFloatVector(color, 4), name };
+	} else if (colors){
+		value = { entity: "texture", colors: parseListOfFloatVector(colors, 4), name }
 	}
 
 	return value;
@@ -112,7 +121,7 @@ function parseMaterial(materialEl) {
 		useRoughnessMap: !!roughnessMap,
 		roughness: parseFloatOrDefault(materialEl.getAttribute("roughness")),
 		metalness: parseFloatOrDefault(materialEl.getAttribute("metalness")),
-		baseReflectance: parseVector(materialEl.getAttribute("base-reflectance"), 3)
+		baseReflectance: parseFloatVector(materialEl.getAttribute("base-reflectance"), 3)
 	});
 }
 
@@ -195,17 +204,17 @@ async function parseGroup(groupEl, options){
 		children
 	});
 
-	const translate = parseVector(groupEl.getAttribute("translate"), 3);
+	const translate = parseFloatVector(groupEl.getAttribute("translate"), 3);
 	if (translate) {
 		group.translate({ x: translate[0], y: translate[1], z: translate[2] });
 	}
 
-	const rotate = parseVector(groupEl.getAttribute("rotate"), 3);
+	const rotate = parseFloatVector(groupEl.getAttribute("rotate"), 3);
 	if (rotate) {
 		group.rotate({ x: rotate[0], y: rotate[1], z: rotate[2] });
 	}
 
-	const scale = parseVector(groupEl.getAttribute("scale"), 3);
+	const scale = parseFloatVector(groupEl.getAttribute("scale"), 3);
 	if (scale) {
 		group.scale({ x: scale[0], y: scale[1], z: scale[2] });
 	}
@@ -216,17 +225,17 @@ async function parseGroup(groupEl, options){
 function parseLight(lightEl) {
 	const light = new Light({
 		type: lightEl.getAttribute("type") ?? "point",
-		color: parseVector(lightEl.getAttribute("color"), 4, [1, 1, 1, 1]),
-		direction: parseVector(lightEl.getAttribute("direction"), 3, [0, 0, 0]),
+		color: parseFloatVector(lightEl.getAttribute("color"), 4, [1, 1, 1, 1]),
+		direction: parseFloatVector(lightEl.getAttribute("direction"), 3, [0, 0, 0]),
 		castsShadow: lightEl.hasAttribute("casts-shadow")
 	});
 
-	const translate = parseVector(lightEl.getAttribute("translate"), 3);
+	const translate = parseFloatVector(lightEl.getAttribute("translate"), 3);
 	if (translate) {
 		light.translate({ x: translate[0], y: translate[1], z: translate[2] });
 	}
 
-	const rotate = parseVector(lightEl.getAttribute("rotate"), 3);
+	const rotate = parseFloatVector(lightEl.getAttribute("rotate"), 3);
 	if (rotate) {
 		light.rotate({ x: rotate[0], y: rotate[1], z: rotate[2] });
 	}

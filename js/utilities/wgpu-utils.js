@@ -122,29 +122,38 @@ export async function uploadSingleChannelTexture(device, url, options) {
 }
 
 /**
- * Creates a 1x1 texture of a color
+ * Creates a 1x1 texture of a color or a layered texture for an array of colors, colors are in float format
  * @param {GPUDevice} device
- * @param {{ label?: string, color?: [number, number, number, number] }}
+ * @param {{ label?: string, color?: [number, number, number, number], colors?: [number, number, number, number][] }}
  * @returns 
  */
 export function createColorTexture(device, options = {}) {
+	const colors = options.colors ?? [options.color];
+	const size = {
+		height: 1,
+		width: 1,
+		depthOrArrayLayers: colors.length
+	};
+
 	const texture = device.createTexture({
 		label: options.label,
-		size: [1, 1],
+		size,
 		format: 'rgba8unorm',
 		usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
 	});
 
-	const texel = options.color
-		? new Uint8Array(options.color)
+	colors.forEach((color, layer) => {
+		const texel = color
+		? new Uint8Array(color.map(v => v*255))
 		: new Uint8Array([255, 255, 255, 255]);
 
-	device.queue.writeTexture(
-		{ texture },
-		texel,
-		{ bytesPerRow: 4 },
-		{ width: 1, height: 1, depthOrArrayLayers: 1 }
-	);
+		device.queue.writeTexture(
+			{ texture, origin: { x: 0, y: 0, z: layer } },
+			texel,
+			{ bytesPerRow: 4, rowsPerImage: 1 },
+			{ width: 1, height: 1, depthOrArrayLayers: 1 }
+		);
+	});
 
 	return texture;
 }

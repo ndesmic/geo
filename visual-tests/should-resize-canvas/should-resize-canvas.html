@@ -21,6 +21,12 @@
 			<geo-material name="red-fabric" roughness-map="red-fabric-roughness" albedo-map="red-fabric"></geo-material>
 			<geo-material name="gold" roughness="0.2" metalness="1" base-reflectance="1.059, 0.773, 0.307" albedo-map="gold"></geo-material>
 
+			<geo-texture name="debug-background" colors="1,0,0,1; 0.25,0,0,1; 0,1,0,1; 0,0.25,0,1; 0,0,1,1; 0,0,0.25,1"></geo-texture>
+			<geo-background 
+				environment-map="debug-background"
+				sampler="nearest"
+			></geo-background>
+
 			<geo-group name="teapot-rug">
 				<geo-mesh 
 					name="teapot" 

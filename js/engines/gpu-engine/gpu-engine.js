@@ -1,3 +1,4 @@
+//@ts-check
 import { packArray, packStruct, roundSmallMagnitudeValues } from "../../utilities/buffer-utils.js";
 import { getTranspose, getInverse, trimMatrix, getEmptyMatrix, multiplyMatrix, multiplyMatrixVector, printMatrix } from "../../utilities/vector.js";
 import { uploadMesh, uploadTexture, createColorTexture } from "../../utilities/wgpu-utils.js";
@@ -36,6 +37,10 @@ export class GpuEngine {
 	#textures = new Map();
 	#materials = new Map();
 	#samplers = new Map();
+
+	/**
+	 * @type {{ mesh: Mesh, environmentMap: string, sampler: string | Symbol  } | null}
+	 */
 	#background = null;
 
 	constructor(options) {
@@ -78,8 +83,8 @@ export class GpuEngine {
 	initializeTexture(texture) {
 		if (texture.image ?? texture.images) {
 			this.#textures.set(texture.name, uploadTexture(this.#device, texture.image ?? texture.images, { label: `${texture.name}-texture` }));
-		} else if (texture.color) {
-			this.#textures.set(texture.name, createColorTexture(this.#device, { color: texture.color, label: `${texture.name}-texture` }));
+		} else if (texture.color ?? texture.colors) {
+			this.#textures.set(texture.name, createColorTexture(this.#device, { color: texture.color, colors: texture.colors, label: `${texture.name}-texture` }));
 		}
 	}
 	initDepthTexture() {
@@ -368,8 +373,7 @@ export class GpuEngine {
 				["viewMatrix", "mat4x4f32"],
 				["castsShadow", "u32"],
 				["shadowMapIndex", "i32"]
-			]
-			, 64);
+			], { minSize: 64 });
 
 		const lightBuffer = this.#device.createBuffer({
 			size: lightData.byteLength,
@@ -519,6 +523,7 @@ export class GpuEngine {
 		passEncoder.setBindGroup(0, sceneBindGroup);
 	}
 	setBackgroundTextureBindGroup(passEncoder, bindGroupLayouts) {
+		if(!this.#background) throw new Error("Tried to set a background when none defined.");
 		const textureBindGroup = this.#device.createBindGroup({
 			layout: bindGroupLayouts.get("materials"),
 			entries: [
@@ -528,7 +533,7 @@ export class GpuEngine {
 		});
 		passEncoder.setBindGroup(1, textureBindGroup);
 	}
-	render() {
+	render(_timestamp) {
 		this.renderShadowMaps();
 		//this.renderDepthBuffer(this.#shadowMaps.get("light1").createView());
 		this.renderScene();
@@ -560,7 +565,7 @@ export class GpuEngine {
 					for (const child of meshOrGroup.children) {
 						renderRecursive(child)
 					}
-				} else if(meshOrGroup instanceof Group){
+				} else if(meshOrGroup instanceof Mesh){
 					const shadowMap = this.#shadowMaps.get(key);
 					const meshContainer = this.#meshContainers.get(meshOrGroup);
 

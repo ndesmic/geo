@@ -130,7 +130,10 @@ describe("buffer-utils", () => {
 			const schema = [
 				["val", "f32"]
 			];
-			const buffer = packStruct(data, schema, null, new ArrayBuffer(12), 4);
+			const buffer = packStruct(data, schema, {
+				buffer: new ArrayBuffer(12), 
+				offset: 4
+			});
 			const view = new Float32Array(buffer);
 
 			expect(view).toEqual(new Float32Array([
@@ -182,6 +185,35 @@ describe("buffer-utils", () => {
 				0,
 				77,0,5,6,11,
 				0
+			]));
+		});
+
+		it("should pack array at location", () => {
+			const data = [
+				{ a: 10, b: new Float32Array([1, 2]), c: 7 },
+				{ a: 34, b: new Float32Array([3, 4]), c: 9 },
+				{ a: 77, b: new Float32Array([5, 6]), c: 11 },
+			];
+			const schema = [
+				["a", "f32"],
+				["b", "vec2f32"],
+				["c", "f32"]
+			];
+			const buffer = new ArrayBuffer(100);
+			const outBuffer = packArray(data, schema, {
+				buffer, 
+				offset: 16
+			});
+			const view = new Float32Array(outBuffer);
+
+			expect(view).toEqual(new Float32Array([
+				0,0,0,0,
+				10,0,1,2,7,
+				0,
+				34,0,3,4,9,
+				0,
+				77,0,5,6,11,
+				0,0,0,0
 			]));
 		});
 	});

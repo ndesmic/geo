@@ -20,6 +20,24 @@
     "@playwright/test": "npm:@playwright/test@^1.55.0",
     "@std/expect": "jsr:@std/expect@^1.0.16",
     "@std/testing": "jsr:@std/testing@^1.0.14",
+    "@webgpu/types": "npm:@webgpu/types@^0.1.65",
     "playwright": "npm:playwright@^1.55.0"
+  },
+  "lint": {
+    "rules": {
+      "exclude": [
+        "no-explicit-any"
+      ]
+    }
+  },
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "types": [
+      "@webgpu/types"
+    ],
+    "lib": [
+      "esnext",
+      "dom"
+    ]
   }
 }
