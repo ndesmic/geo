@@ -260,6 +260,32 @@ describe("buffer-utils", () => {
 			];
 			expect(() => packStruct(data, schema)).toThrow("Array must be the last element in a struct!");
 		});
+		it.only("should pack a struct (more complex)", () => {
+			const data = {
+				baseReflectance: [1.059, 0.773, 0.307],
+				metalness: 1,
+				roughness: 0.2,
+				useRoughnessMap: 0
+			};
+			const schema = [
+				["useRoughnessMap", "u32"],
+				["roughness","f32"],
+				["metalness","f32"],
+				["baseReflectance","vec3f32"]
+			];
+			const buffer = packStruct(data, schema);
+			expect(buffer).toEqual(new Float32Array([
+				0,
+				0.20000000298023224,
+				1,
+				0,
+				1.059000015258789,
+				0.7730000019073486,
+				0.3070000112056732,
+				0
+			]))
+
+		});
 	});
 	describe("packArray", () => {
 		it("should pack array", () => {
@@ -330,7 +356,7 @@ describe("buffer-utils", () => {
 				33,
 			]));
 		});
-		it("should packa struct and use buffer and offset if provided", () => {
+		it("should pack struct and use buffer and offset if provided", () => {
 			const data = {
 				val: 33
 			};

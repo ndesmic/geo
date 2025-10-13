@@ -159,10 +159,10 @@ fn fragment_main(frag_data: VertexOut) -> @location(0) vec4<f32>
 		var to_light = vec3(0.0);
 
 		switch light.light_type {
-			case 0: {
-				to_light = normalize(light.position - frag_data.world_position.xyz);
+			case 0: { //point
+ 				to_light = normalize(light.position - frag_data.world_position.xyz);
 			}
-			case 1: {
+			case 1: { //directional
 				to_light = normalize(-light.direction);
 			}
 			default: {}
