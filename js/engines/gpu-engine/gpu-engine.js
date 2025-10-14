@@ -1,5 +1,5 @@
 //@ts-check
-import { packArray, packStruct, roundSmallMagnitudeValues } from "../../utilities/buffer-utils.js";
+import { pack, roundSmallMagnitudeValues } from "../../utilities/buffer-utils.js";
 import { getTranspose, getInverse, trimMatrix, getEmptyMatrix, multiplyMatrix, multiplyMatrixVector, printMatrix } from "../../utilities/vector.js";
 import { uploadMesh, uploadTexture, createColorTexture } from "../../utilities/wgpu-utils.js";
 import { getLightViewMatrix, getLightProjectionMatrix } from "../../utilities/light-utils.js";
@@ -259,7 +259,7 @@ export class GpuEngine {
 			cameraPosition: camera.position //TODO: probably needs a transform...
 		};
 
-		const sceneData = packStruct(scene, [
+		const sceneData = pack(scene, [
 			["viewMatrix", "mat4x4f32"],
 			["projectionMatrix", "mat4x4f32"],
 			["modelMatrix", "mat4x4f32"],
@@ -303,7 +303,7 @@ export class GpuEngine {
 			metalness: material.metalness,
 			baseReflectance: material.baseReflectance
 		};
-		const materialData = packStruct(materialModel, [
+		const materialData = pack(materialModel, [
 			["useRoughnessMap", "u32"],
 			["roughness", "f32"],
 			["metalness", "f32"],
@@ -363,7 +363,7 @@ export class GpuEngine {
 			.filter(lightData => lightData.shadowMapIndex > -1)
 			.map(lightData => lightData.shadowMap);
 
-		const lightData = packArray(shadowMappedLights,
+		const lightData = pack(shadowMappedLights,
 			[
 				["typeInt", "u32"],
 				["position", "vec3f32"],
@@ -454,7 +454,7 @@ export class GpuEngine {
 				[3, 3])
 		};
 
-		const sceneData = packStruct(scene, [
+		const sceneData = pack(scene, [
 			["viewMatrix", "mat4x4f32"],
 			["projectionMatrix", "mat4x4f32"],
 			["modelMatrix", "mat4x4f32"],

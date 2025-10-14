@@ -105,170 +105,133 @@ export function packMesh(mesh){
 }
 
 /**
- * @typedef {[string|((object)=>string),GpuType | Prop[]]} Prop
+ * @typedef {[string,GpuType | Prop[]]} Prop
  * @typedef {Prop[]} Schema
  * 
  * @param {object} data 
  * @param {Schema} schema
- * @param {{ minSize?: number, buffer?: ArrayBuffer, offset?: number, arrayCount?: number }} options
+ * @param {{ minSize?: number, buffer?: ArrayBuffer, offset?: number }} options
  */
-export function packStruct(data, schema, options = {}){
+export function pack(data, schema, options = {}){
 	const offset = options.offset ?? 0;
-	const { offsets, totalSize } = getAlignments(getValuesFromEntriesRecursive(schema),	{ minSize: options.minSize, arrayCount: options.arrayCount });
-	const outBuffer = options.buffer ?? new ArrayBuffer(totalSize);
-	const dataView = new DataView(outBuffer);
 
-	for(let i = 0; i < schema.length; i++){
-		const [name, type] = schema[i];
-		let value;
-		if(typeof(name) === "function"){
-			value = name(data);
-		} else {
-			value = data[name];
+	if(Array.isArray(data)){
+		const { totalSize: structSize } = getAlignments(getValuesFromEntriesRecursive(schema), { minSize: options.minSize });
+		const outBuffer = options.buffer ?? new ArrayBuffer(structSize * data.length);
+		
+		for(let i = 0; i < data.length; i++){
+			pack(data[i], schema, {
+				minSize: options.minSize, 
+				buffer: outBuffer, 
+				offset: offset + i * structSize
+			});
 		}
-		//TODO: add other GPU Types
-		const totalOffset = offset + offsets[i];
-		switch(type){
-			case "i32": {
-				dataView.setInt32(totalOffset, value, true);
-				break;
-			}
-			case "u32": {
-				dataView.setUint32(totalOffset, value, true);
-				break;
-			}
-			case "f32": {
-				dataView.setFloat32(totalOffset, value, true);
-				break;
-			}
-			case "vec2f32": {
-				dataView.setFloat32(totalOffset, value[0], true);
-				dataView.setFloat32(totalOffset + 4, value[1], true);
-				break;
-			}
-			case "vec3f32": {
-				dataView.setFloat32(totalOffset, value[0], true);
-				dataView.setFloat32(totalOffset + 4, value[1], true);
-				dataView.setFloat32(totalOffset + 8, value[2], true);
-				break;
-			}
-			case "vec4f32": {
-				dataView.setFloat32(totalOffset, value[0], true);
-				dataView.setFloat32(totalOffset + 4, value[1], true);
-				dataView.setFloat32(totalOffset + 8, value[2], true);
-				dataView.setFloat32(totalOffset + 12, value[3], true);
-				break;
-			}
-			case "mat2x2f32": {
-				dataView.setFloat32(totalOffset, value[0], true);
-				dataView.setFloat32(totalOffset + 4, value[1], true);
+		return outBuffer;
+	} else {
+		const lastSchema = schema.at(-1);
+		const lastProp = data[/**@type {Prop} */(lastSchema)[0]]; 
+		const count = (Array.isArray(lastProp) && Array.isArray(/** @type {Prop} */(lastSchema)[1])) ? lastProp.length : 1; //if last data and schema are arrays then it's an array
+		const { offsets, totalSize } = getAlignments(getValuesFromEntriesRecursive(schema),	{ minSize: options.minSize, arrayCount: count });
+		const outBuffer = options.buffer ?? new ArrayBuffer(totalSize);
+		const dataView = new DataView(outBuffer);
 
-				dataView.setFloat32(totalOffset + 8, value[2], true);
-				dataView.setFloat32(totalOffset + 12, value[3], true);
-				break;
+		for(let i = 0; i < schema.length; i++){
+			const [name, type] = schema[i];
+			const value = data[name];
+			if(value === undefined){
+				throw new Error(`Value lookup for prop '${name}' failed!  Double check the prop name is correct.`);
 			}
-			case "mat3x3f32": {
-				dataView.setFloat32(totalOffset, value[0], true);
-				dataView.setFloat32(totalOffset + 4, value[1], true);
-				dataView.setFloat32(totalOffset + 8, value[2], true);
+			//TODO: add other GPU Types
+			const totalOffset = offset + offsets[i];
+			switch(type){
+				case "i32": {
+					dataView.setInt32(totalOffset, value, true);
+					break;
+				}
+				case "u32": {
+					dataView.setUint32(totalOffset, value, true);
+					break;
+				}
+				case "f32": {
+					dataView.setFloat32(totalOffset, value, true);
+					break;
+				}
+				case "vec2f32": {
+					dataView.setFloat32(totalOffset, value[0], true);
+					dataView.setFloat32(totalOffset + 4, value[1], true);
+					break;
+				}
+				case "vec3f32": {
+					dataView.setFloat32(totalOffset, value[0], true);
+					dataView.setFloat32(totalOffset + 4, value[1], true);
+					dataView.setFloat32(totalOffset + 8, value[2], true);
+					break;
+				}
+				case "vec4f32": {
+					dataView.setFloat32(totalOffset, value[0], true);
+					dataView.setFloat32(totalOffset + 4, value[1], true);
+					dataView.setFloat32(totalOffset + 8, value[2], true);
+					dataView.setFloat32(totalOffset + 12, value[3], true);
+					break;
+				}
+				case "mat2x2f32": {
+					dataView.setFloat32(totalOffset, value[0], true);
+					dataView.setFloat32(totalOffset + 4, value[1], true);
 
-				dataView.setFloat32(totalOffset + 16, value[3], true);
-				dataView.setFloat32(totalOffset + 20, value[4], true);
-				dataView.setFloat32(totalOffset + 24, value[5], true);
+					dataView.setFloat32(totalOffset + 8, value[2], true);
+					dataView.setFloat32(totalOffset + 12, value[3], true);
+					break;
+				}
+				case "mat3x3f32": {
+					dataView.setFloat32(totalOffset, value[0], true);
+					dataView.setFloat32(totalOffset + 4, value[1], true);
+					dataView.setFloat32(totalOffset + 8, value[2], true);
 
-				dataView.setFloat32(totalOffset + 32, value[6], true);
-				dataView.setFloat32(totalOffset + 36, value[7], true);
-				dataView.setFloat32(totalOffset + 40, value[8], true);
-				break;
-			}
-			case "mat4x4f32": {
-				dataView.setFloat32(totalOffset, value[0], true);
-				dataView.setFloat32(totalOffset + 4, value[1], true);
-				dataView.setFloat32(totalOffset + 8, value[2], true);
-				dataView.setFloat32(totalOffset + 12, value[3], true);
+					dataView.setFloat32(totalOffset + 16, value[3], true);
+					dataView.setFloat32(totalOffset + 20, value[4], true);
+					dataView.setFloat32(totalOffset + 24, value[5], true);
 
-				dataView.setFloat32(totalOffset + 16, value[4], true);
-				dataView.setFloat32(totalOffset + 20, value[5], true);
-				dataView.setFloat32(totalOffset + 24, value[6], true);
-				dataView.setFloat32(totalOffset + 28, value[7], true);
+					dataView.setFloat32(totalOffset + 32, value[6], true);
+					dataView.setFloat32(totalOffset + 36, value[7], true);
+					dataView.setFloat32(totalOffset + 40, value[8], true);
+					break;
+				}
+				case "mat4x4f32": {
+					dataView.setFloat32(totalOffset, value[0], true);
+					dataView.setFloat32(totalOffset + 4, value[1], true);
+					dataView.setFloat32(totalOffset + 8, value[2], true);
+					dataView.setFloat32(totalOffset + 12, value[3], true);
 
-				dataView.setFloat32(totalOffset + 32, value[8], true);
-				dataView.setFloat32(totalOffset + 36, value[9], true);
-				dataView.setFloat32(totalOffset + 40, value[10], true);
-				dataView.setFloat32(totalOffset + 44, value[11], true);
+					dataView.setFloat32(totalOffset + 16, value[4], true);
+					dataView.setFloat32(totalOffset + 20, value[5], true);
+					dataView.setFloat32(totalOffset + 24, value[6], true);
+					dataView.setFloat32(totalOffset + 28, value[7], true);
 
-				dataView.setFloat32(totalOffset + 48, value[12], true);
-				dataView.setFloat32(totalOffset + 52, value[13], true);
-				dataView.setFloat32(totalOffset + 56, value[14], true);
-				dataView.setFloat32(totalOffset + 60, value[15], true);
-				break;
-			}
-			default: {
-				if(Array.isArray(type)){
-					packArray(value, /** @type {Prop[]}*/(type), { buffer: outBuffer, offset: totalOffset });
-				} else {
-					throw new Error(`Cannot pack type ${type} at prop index ${i} with value ${value}`);
+					dataView.setFloat32(totalOffset + 32, value[8], true);
+					dataView.setFloat32(totalOffset + 36, value[9], true);
+					dataView.setFloat32(totalOffset + 40, value[10], true);
+					dataView.setFloat32(totalOffset + 44, value[11], true);
+
+					dataView.setFloat32(totalOffset + 48, value[12], true);
+					dataView.setFloat32(totalOffset + 52, value[13], true);
+					dataView.setFloat32(totalOffset + 56, value[14], true);
+					dataView.setFloat32(totalOffset + 60, value[15], true);
+					break;
+				}
+				default: {
+					if(Array.isArray(type)){
+						if(Array.isArray(value) && i !== (schema.length - 1)){
+							throw new Error("Array must be the last element in a struct!")
+						}
+						pack(value, /** @type {Prop[]}*/(type), { buffer: outBuffer, offset: totalOffset });
+					} else {
+						throw new Error(`Cannot pack type ${type} at prop index ${i} with value ${value}`);
+					}
 				}
 			}
 		}
+		return outBuffer;
 	}
-
-	return outBuffer;
-}
-
-/**
- * 
- * @param {object} data 
- * @param {Prop[]} schema 
- * @param {{ minSize?: number, offset?: number, buffer?: ArrayBuffer }} options 
- * @returns 
- */
-export function packArray(data, schema, options = {}){
-	const offset = options.offset ?? 0;
-	const { totalSize: structSize } = getAlignments(getValuesFromEntriesRecursive(schema), { minSize: options.minSize });
-	const totalSize = structSize * data.length;
-	const outBuffer = options.buffer ?? new ArrayBuffer(totalSize);
-	for(let i = 0; i < data.length; i++){
-		packStruct(data[i], schema, {
-			minSize: options.minSize, 
-			buffer: outBuffer, 
-			offset: offset + i * structSize
-		});
-	}
-	return outBuffer;
-}
-
-/**
- * 
- * @param {object} data 
- * @param {Prop[]} schema 
- * @param {{ minSize?: number, offset?: number, buffer?: ArrayBuffer }} options 
- * @returns 
- */
-export function pack(data, schema, options = {}){
-	if(Array.isArray(data)){
-		return packArray(data, schema, options);
-	}
-	return packStruct(data, schema, options);
-}
-
-export function getAlignSize(type, count = 1){
-	if(Array.isArray(type)){
-		let offset = 0;
-		let maxAlign = 0;
-		for(let i = 0; i < type.length; i++){
-			const { align, size } = getAlignSize(type[i]);
-			if(maxAlign < align){
-				maxAlign = align;
-			}
-			offset = getPaddedSize(offset, align);
-			offset += size;
-		}
-		offset = getPaddedSize(offset, maxAlign);
-		const size  = offset * count;
-		return { align: 16, size  };
-	}
-	return gpuTypeAlignSize[type];
 }
 
 /**
@@ -287,16 +250,6 @@ export function getPaddedSize(size, smallestUnitSize, minSize = 0) {
 	return computedSize > minSize ? computedSize : minSize;
 }
 
-export function getPaddedBuffer(buffer, smallestUnitSize, minSize){
-	const newSize = getPaddedSize(buffer.byteLength, smallestUnitSize, minSize);
-	if(newSize === buffer.byteLength) return buffer;
-	const newBuffer = new ArrayBuffer(newSize);
-	const newBufferView = new Uint8Array(newBuffer);
-	const oldBufferView = new Uint8Array(buffer);
-	newBufferView.set(oldBufferView, 0);
-	return newBuffer;
-}
-
 /**
  * @param {GpuType[]} typesToPack
  * @param {{ minSize?: number, arrayCount?: number }} options
@@ -307,22 +260,28 @@ export function getAlignments(typesToPack, options = {}){
 	const offsets = new Array(typesToPack.length);
 
 	for(let i = 0; i < typesToPack.length; i++){
-		if(Array.isArray(typesToPack[i]) && i !== typesToPack.length - 1){
-			throw new Error("Array must be the last element in a struct!");
-		}
-		const { align: alignment, size } = getAlignSize(typesToPack[i], options.arrayCount);
+		let align;
+		let size;
+		if(Array.isArray(typesToPack[i])){
+			const alignSize = getAlignments(/** @type {GpuType[]} */(typesToPack[i]));
+			align = 16;
+			size = alignSize.totalSize * (options.arrayCount ?? 1);
+		}else {
+			const alignSize = gpuTypeAlignSize[typesToPack[i]];
+			align = alignSize.align;
+			size = alignSize.size;
+		}	
 
-		if(maxAlign < alignment){
-			maxAlign = alignment;
+		if(maxAlign < align){
+			maxAlign = align;
 		}
 
-		offset = getPaddedSize(offset, alignment);
+		offset = getPaddedSize(offset, align);
 		offsets[i] = offset;
 		offset += size;
 	}
 	return {
 		offsets,
-		maxAlign,
 		totalSize: getPaddedSize(offset, maxAlign, options.minSize)
 	};
 }
