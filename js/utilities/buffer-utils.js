@@ -1,50 +1,50 @@
 //@ts-check
 // align / size https://www.w3.org/TR/WGSL/#alignment-and-size
-/**@type {Record<string, [number,number]>}  */
+/**@type {Record<string,{align:number,size:number}>}  */
 
 import { getValuesFromEntriesRecursive } from "./array-utils.js";
 
 /**@constant */
 const gpuTypeAlignSize = {
-	bool: [4, 4],
-	i32: [4, 4],
-	u32: [4, 4],
-	f32: [4, 4],
-	f16: [2, 2],
-	atomic: [4, 4],
-	vec2bool: [8, 8],
-	vec2i32: [8, 8],
-	vec2u32: [8, 8],
-	vec2f32: [8, 8],
-	vec2f16: [4, 4],
-	vec3bool: [16, 12],
-	vec3i32: [16, 12],
-	vec3u32: [16, 12],
-	vec3f32: [16, 12],
-	vec3f16: [8, 6],
-	vec4bool: [16, 16],
-	vec4i32: [16, 16],
-	vec4u32: [16, 16],
-	vec4f32: [16, 16],
-	vec4f16: [8, 8],
-	mat2x2f32: [8, 16],
-	mat2x2f16: [4, 8],
-	mat3x2f32: [8, 24],
-	mat3x2f16: [4, 12],
-	mat4x2f32: [8, 32],
-	mat4x2f16: [4, 16],
-	mat2x3f32: [16, 32],
-	mat2x3f16: [8, 16],
-	mat3x3f32: [16, 48],
-	mat3x3f16: [8, 24],
-	mat4x3f32: [16, 64],
-	mat4x3f16: [8, 32],
-	mat2x4f32: [16, 32],
-	mat2x4f16: [8, 16],
-	mat3x4f32: [16, 48],
-	mat3x4f16: [8, 24],
-	mat4x4f32: [16, 64],
-	mat4x4f16: [8, 32]
+	bool: { align: 4, size: 4},
+	i32: { align: 4, size: 4},
+	u32: { align: 4, size: 4},
+	f32: { align: 4, size: 4},
+	f16: { align: 2, size: 2},
+	atomic: { align: 4, size: 4},
+	vec2bool: { align: 8, size: 8},
+	vec2i32: { align: 8, size: 8},
+	vec2u32: { align: 8, size: 8},
+	vec2f32: { align: 8, size: 8},
+	vec2f16: { align: 4, size: 4},
+	vec3bool: { align: 16, size: 12},
+	vec3i32: { align: 16, size: 12},
+	vec3u32: { align: 16, size: 12},
+	vec3f32: { align: 16, size: 12},
+	vec3f16: { align: 8, size: 6},
+	vec4bool: { align: 16, size: 16},
+	vec4i32: { align: 16, size: 16},
+	vec4u32: { align: 16, size: 16},
+	vec4f32: { align: 16, size: 16},
+	vec4f16: { align: 8, size: 8},
+	mat2x2f32: { align: 8, size: 16},
+	mat2x2f16: { align: 4, size: 8},
+	mat3x2f32: { align: 8, size: 24},
+	mat3x2f16: { align: 4, size: 12},
+	mat4x2f32: { align: 8, size: 32},
+	mat4x2f16: { align: 4, size: 16},
+	mat2x3f32: { align: 16, size: 32},
+	mat2x3f16: { align: 8, size: 16},
+	mat3x3f32: { align: 16, size: 48},
+	mat3x3f16: { align: 8, size: 24},
+	mat4x3f32: { align: 16, size: 64},
+	mat4x3f16: { align: 8, size: 32},
+	mat2x4f32: { align: 16, size: 32},
+	mat2x4f16: { align: 8, size: 16},
+	mat3x4f32: { align: 16, size: 48},
+	mat3x4f16: { align: 8, size: 24},
+	mat4x4f32: { align: 16, size: 64},
+	mat4x4f16: { align: 8, size: 32}
 };
 /**
  * @typedef {keyof gpuTypeAlignSize} GpuScalarType
@@ -252,6 +252,25 @@ export function pack(data, schema, options = {}){
 	return packStruct(data, schema, options);
 }
 
+export function getAlignSize(type, count = 1){
+	if(Array.isArray(type)){
+		let offset = 0;
+		let maxAlign = 0;
+		for(let i = 0; i < type.length; i++){
+			const { align, size } = getAlignSize(type[i]);
+			if(maxAlign < align){
+				maxAlign = align;
+			}
+			offset = getPaddedSize(offset, align);
+			offset += size;
+		}
+		offset = getPaddedSize(offset, maxAlign);
+		const size  = offset * count;
+		return { align: 16, size  };
+	}
+	return gpuTypeAlignSize[type];
+}
+
 /**
  * 
  * @param {number} size 
@@ -278,48 +297,28 @@ export function getPaddedBuffer(buffer, smallestUnitSize, minSize){
 	return newBuffer;
 }
 
-
-
-/**
- * 
- * @param {GpuType[]} typesToPack 
- * @param {{ minSize?: number }} options 
- * @returns 
- */
-export function getMaxAlign(typesToPack, options = {}){
-	let maxAlign = options.minSize ?? 0;
-	for(let i = 0; i < typesToPack.length; i++){
-		if(Array.isArray(typesToPack[i])){
-			return 16; //arrays are always 16 and 16 is the max
-		} else {
-			const [align, _size] = gpuTypeAlignSize[typesToPack[i]];
-			maxAlign = Math.max(align, maxAlign);
-		}
-	}
-	return maxAlign;
-}
-
 /**
  * @param {GpuType[]} typesToPack
  * @param {{ minSize?: number, arrayCount?: number }} options
  */
 export function getAlignments(typesToPack, options = {}){
 	let offset = 0;
-	const maxAlign = getMaxAlign(typesToPack);
+	let maxAlign = 0;
 	const offsets = new Array(typesToPack.length);
+
 	for(let i = 0; i < typesToPack.length; i++){
-		if(Array.isArray(typesToPack[i])){
-			if(i !== typesToPack.length - 1){
-				throw new Error(`Array must be the last element in a struct!`);
-			}
-			const { totalSize } = getAlignments(/** @type {GpuType[]} */(typesToPack[i]), { minSize: options.minSize ?? 16 });
-			offsets[i] = getPaddedSize(totalSize, maxAlign);
-			offset += totalSize * (options.arrayCount ?? 1);
-		} else {
-			const [_alignment, size] = gpuTypeAlignSize[typesToPack[i]];
-			offsets[i] = offset;
-			offset += getPaddedSize(size, maxAlign);
+		if(Array.isArray(typesToPack[i]) && i !== typesToPack.length - 1){
+			throw new Error("Array must be the last element in a struct!");
 		}
+		const { align: alignment, size } = getAlignSize(typesToPack[i], options.arrayCount);
+
+		if(maxAlign < alignment){
+			maxAlign = alignment;
+		}
+
+		offset = getPaddedSize(offset, alignment);
+		offsets[i] = offset;
+		offset += size;
 	}
 	return {
 		offsets,

@@ -1,6 +1,6 @@
 import { describe, it } from "@std/testing/bdd";
 import { expect } from "@std/expect";
-import { getAlignments, getPaddedSize, packArray, packMesh, packStruct, pack, roundSmallMagnitudeValues, getMaxAlign } from "./buffer-utils.js";
+import { getAlignments, getPaddedSize, packArray, packMesh, packStruct, pack, roundSmallMagnitudeValues } from "./buffer-utils.js";
 import { Mesh } from "../entities/mesh.js";
 
 describe("buffer-utils", () => {
@@ -84,33 +84,6 @@ describe("buffer-utils", () => {
 		});
 		it("should get padded (bigger) size when not aligned", () => {
 			expect(getPaddedSize(204, 16)).toEqual(208);
-		});
-	});
-	describe("getMaxAlign", () => {
-		it("should get max align (u32)", () => {
-			const result = getMaxAlign([
-				"u32",
-				"f32"
-			]);
-			expect(result).toEqual(4);
-		});
-		it("should get max align (mat2x3f32)", () => {
-			const result = getMaxAlign([
-				"f32",
-				"vec2f32",
-				"mat2x3f32"
-			]);
-			expect(result).toEqual(16);
-		});
-		it("should get max align (nested)", () => {
-			const result = getMaxAlign([
-				"f32",
-				[
-					"vec2f32"
-				],
-				"u32"
-			]);
-			expect(result).toEqual(16);
 		});
 	});
 	describe("getAlignments", () => {
@@ -260,7 +233,7 @@ describe("buffer-utils", () => {
 			];
 			expect(() => packStruct(data, schema)).toThrow("Array must be the last element in a struct!");
 		});
-		it.only("should pack a struct (more complex)", () => {
+		it("should pack a struct (more complex)", () => {
 			const data = {
 				baseReflectance: [1.059, 0.773, 0.307],
 				metalness: 1,
@@ -274,7 +247,9 @@ describe("buffer-utils", () => {
 				["baseReflectance","vec3f32"]
 			];
 			const buffer = packStruct(data, schema);
-			expect(buffer).toEqual(new Float32Array([
+			const view = new Float32Array(buffer);
+
+			expect(view).toEqual(new Float32Array([
 				0,
 				0.20000000298023224,
 				1,
@@ -446,7 +421,7 @@ describe("buffer-utils", () => {
 				0,0,0,0
 			]));
 		});
-		it("should pack struct with array", () => {
+		it.only("should pack struct with array", () => {
 			const data = {
 				value: 678.12,
 				mat: new Float32Array([9,8,7,6]),
@@ -469,8 +444,8 @@ describe("buffer-utils", () => {
 			const outBuffer = pack(data, schema, { arrayCount: 3 });
 			const view = new Float32Array(outBuffer);
 			expect(view).toEqual(new Float32Array([
-				678.1199951171875,0,0,0,
-				9,8,7,6,
+				678.1199951171875,0,
+				9,8,7,6, 0, 0,
 				10, 0, 1, 2, 7, 0,
 				34, 0, 3, 4, 9, 0,
 				77, 0, 5, 6, 11,0,
