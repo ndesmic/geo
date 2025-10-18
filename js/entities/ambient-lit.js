@@ -3,13 +3,16 @@
 
 /** @implements {IAmbientLit} */
 export class AmbientLit {
-    #lightingEnvironmentMap;
+    #ambientLightMap;
 
     constructor(options = {}){
-        this.#lightingEnvironmentMap = options.environmentMap;
+        this.#ambientLightMap = options.ambientLightMap;
     }
 
-    get lightingEnvironmentMap(){
-        return this.#lightingEnvironmentMap;
+    set ambientLightMap(val){
+        this.#ambientLightMap = val;
+    }
+    get ambientLightMap(){
+        return this.#ambientLightMap;
     }
 }

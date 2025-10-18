@@ -6,6 +6,7 @@ import { Light } from "../entities/light.js";
 import { loadImage } from "../utilities/image-utils.js";
 import { fetchObjMesh } from "./data-utils.js";
 import { surfaceGrid, quad, cube } from "./mesh-generator.js";
+import { Probe } from "../entities/probe.js";
 
 export function parseFloatVector(text, length = 4, defaultValue = null) {
 	return text?.trim()
@@ -50,6 +51,9 @@ function updateMeshAttributes(meshEl, mesh) {
 
 	const material = meshEl.getAttribute("material");
 	mesh.setMaterial(material);
+
+	const ambientLightMap = meshEl.getAttribute("ambient-light-map");
+	mesh.ambientLightMap = ambientLightMap;
 
 	const attributes = parseListOrDefault(meshEl.getAttribute("attributes"));
 	if (attributes) {
@@ -157,6 +161,24 @@ function parseCube(meshEl){
 	return mesh;
 }
 
+function parseProbe(probeEl){
+	const name = probeEl.getAttribute("name");
+	const type = probeEl.getAttribute("type");
+	const outputName = probeEl.getAttribute("outputName");
+	const samples = parseInt(probeEl.getAttribute("samples"), 10);
+	const position = parseFloatVector(probeEl.getAttribute("position"), 3);
+
+	const probe = new Probe({
+		name,
+		type,
+		outputName,
+		position,
+		samples
+	});
+
+	return probe;
+}
+
 /**
  * 
  * @param {HTMLElement} groupEl 
@@ -187,6 +209,9 @@ async function parseGroup(groupEl, options){
 			}
 			case "GEO-LIGHT": {
 				return parseLight(c)
+			}
+			case "GEO-PROBE": {
+				return parseProbe(c);
 			}
 			case "GEO-TEXTURE": {
 				return parseTexture(c);
@@ -224,6 +249,7 @@ async function parseGroup(groupEl, options){
 
 function parseLight(lightEl) {
 	const light = new Light({
+		name: lightEl.getAttribute("name"),
 		type: lightEl.getAttribute("type") ?? "point",
 		color: parseFloatVector(lightEl.getAttribute("color"), 4, [1, 1, 1, 1]),
 		direction: parseFloatVector(lightEl.getAttribute("direction"), 3, [0, 0, 0]),

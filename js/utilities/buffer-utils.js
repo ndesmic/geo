@@ -293,3 +293,20 @@ export function roundSmallMagnitudeValues(array, threshold = 1e-7){
 	}
 	return newArray;
 }
+
+
+/*
+struct BadLayout {
+  a: u32;         // 4-byte alignment
+  b: vec4<f32>;   // 16-byte alignment
+} //32 bytes
+
+struct GoodLayout {
+  b: vec4<f32>;   // 16-byte alignment
+  a: u32;         // 4-byte alignment
+} //20 bytes
+
+*/
+export function optimizeSchema(schema){
+
+}

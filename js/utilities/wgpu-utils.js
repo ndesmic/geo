@@ -124,7 +124,7 @@ export async function uploadSingleChannelTexture(device, url, options) {
 /**
  * Creates a 1x1 texture of a color or a layered texture for an array of colors, colors are in float format
  * @param {GPUDevice} device
- * @param {{ label?: string, color?: [number, number, number, number], colors?: [number, number, number, number][] }}
+ * @param {{ label?: string, color?: [number, number, number, number], colors?: [number, number, number, number][] }} options
  * @returns 
  */
 export function createColorTexture(device, options = {}) {

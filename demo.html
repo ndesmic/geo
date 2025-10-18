@@ -18,16 +18,18 @@
 
 			<geo-texture name="red-fabric" src="./img/red-fabric/red-fabric-base.jpg"></geo-texture>
 			<geo-texture name="red-fabric-roughness" src="./img/red-fabric/red-fabric-roughness.jpg"></geo-texture>
-			<geo-texture name="green" color="0, 1, 0, 1"></geo-texture>
+			<geo-texture name="white" color="0.1, 0.1, 0.1, 1"></geo-texture>
 
 			<geo-material name="red-fabric" roughness-map="red-fabric-roughness" albedo-map="red-fabric"></geo-material>
-			<geo-material name="green" roughness="0.2" metalness="0" albedo-map="green"></geo-material>
+			<geo-material name="green" roughness="0.2" metalness="0" albedo-map="white"></geo-material>
 
 			<geo-texture name="debug-background" colors="1,0,0,1; 0.25,0,0,1; 0,1,0,1; 0,0.25,0,1; 0,0,1,1; 0,0,0.25,1"></geo-texture>
 			<geo-background 
 				environment-map="debug-background"
 				sampler="nearest"
 			></geo-background>
+
+			<geo-probe type="irradiance" position="0, 0, 0" output-name="debug-irradiance-map" samples="10"></geo-probe>
 
 			<geo-group>
 					<geo-mesh 
@@ -38,7 +40,9 @@
 						src="./objs/teapot.obj" 
 						resize-uvs="2" 
 						material="green" 
-						attributes="positions, normals, uvs">
+						attributes="positions, normals, uvs"
+						ambient-light-map="debug-background"
+					>
 					</geo-mesh>
 					<geo-surface-grid 
 						name="rug" 
@@ -50,7 +54,7 @@
 						attributes="positions, normals, uvs">
 					</geo-surface-grid>
 			</geo-group>
-			<geo-light type="directional" color="1, 1, 1, 1" direction="0, -1, 1" casts-shadow></geo-light>
+			<geo-light type="directional" color="0.5, 0.5, 0.5, 1" direction="0, -1, 1" casts-shadow></geo-light>
 		</wc-geo>
 		<script src="js/components/wc-geo.js" type="module"></script>
 	</body>

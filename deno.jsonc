@@ -30,6 +30,9 @@
       ]
     }
   },
+  "fmt": {
+    "useTabs": true,
+  },
   "compilerOptions": {
     "noImplicitAny": false,
     "types": [

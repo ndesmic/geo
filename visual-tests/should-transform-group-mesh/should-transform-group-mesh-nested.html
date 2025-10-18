@@ -21,7 +21,7 @@
 				sampler="nearest"
 			></geo-background>
 
-			<geo-group pipeline="main" rotate="0, 1.5707963267948966, 0">
+			<geo-group rotate="0, 1.5707963267948966, 0">
 				<geo-group rotate="1.5707963267948966, 0, 0">
 					<geo-mesh 
 						name="teapot" 
@@ -45,7 +45,7 @@
 				</geo-group>
 			</geo-group>
 			
-			<geo-light type="directional" color="1, 1, 1, 1" direction="0, -1, 1" casts-shadow></geo-light>
+			<geo-light name="light1" type="directional" color="1, 1, 1, 1" direction="0, -1, 1" casts-shadow></geo-light>
 		</wc-geo>
 		<script src="../../js/components/wc-geo.js" type="module"></script>
 		<script>

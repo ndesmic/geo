@@ -169,8 +169,11 @@ export class Mesh {
 	get normalMatrix(){
 		return getTranspose(getInverse(trimMatrix(this.#transformable.modelMatrix, [4,4], [3, 3]), [3,3]), [3,3]);
 	}
-	get lightingEnvironmentMap(){
-		return this.#ambientLit.lightingEnvironmentMap;
+	set ambientLightMap(val){
+		this.#ambientLit.ambientLightMap = val;
+	}
+	get ambientLightMap(){
+		return this.#ambientLit.ambientLightMap;
 	}
 	/**
 	 * 

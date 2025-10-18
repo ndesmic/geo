@@ -1,3 +1,3 @@
 export interface IAmbientLit {
-    readonly lightingEnvironmentMap: any;
+    ambientLightMap: any;
 }
