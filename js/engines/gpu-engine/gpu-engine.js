@@ -1,10 +1,8 @@
 //@ts-check
-import { pack, roundSmallMagnitudeValues } from "../../utilities/buffer-utils.js";
-import { getTranspose, getInverse, trimMatrix, getEmptyMatrix, multiplyMatrix, multiplyMatrixVector, printMatrix } from "../../utilities/vector.js";
 import { uploadMesh, uploadTexture, createColorTexture } from "../../utilities/wgpu-utils.js";
-import { getLightViewMatrix, getLightProjectionMatrix } from "../../utilities/light-utils.js";
-import { getBackgroundPipeline } from "./pipelines/background-pipeline.js";
-import { getShadowMapPipeline } from "./pipelines/shadow-map-pipeline.js";
+import { getBackgroundPipelineRegistration } from "./pipelines/background-pipeline.js";
+import { getShadowMapPipelineRegistration } from "./pipelines/shadow-map-pipeline.js";
+import { getIrridiancePipelineRegistration } from "./pipelines/irridiance-map-pipeline.js";
 import { getMainPipelineRegistration } from "./pipelines/main-pipeline.js";
 import { setupExtractDepthBuffer } from "../../utilities/debug-utils.js";
 import { Group } from "../../entities/group.js";
@@ -199,37 +197,9 @@ export class GpuEngine {
 	}
 	async initializePipelines() {
 		this.#pipelines.set("main", await getMainPipelineRegistration(this.#device));
-		{
-			const pipeline = await getShadowMapPipeline(this.#device);
-
-			this.#pipelines.set("shadow-map", {
-				pipeline,
-				bindGroupLayouts: new Map([
-					["scene", pipeline.getBindGroupLayout(0)],
-				]),
-				bindMethod: this.setShadowMapBindGroups.bind(this)
-			});
-		}
-		{
-			const pipeline = await getBackgroundPipeline(this.#device);
-
-			this.#pipelines.set("background", {
-				pipeline,
-				bindGroupLayouts: new Map([
-					["scene", pipeline.getBindGroupLayout(0)],
-					["materials", pipeline.getBindGroupLayout(1)]
-				]),
-				bindMethod: this.setBackgroundBindGroups.bind(this)
-			});
-		}
-		// {
-		// 	const pipeline = await getIrridiancePipeline(this.#device);
-
-		// 	this.#pipelines.set("irridiance", {
-		// 		pipeline,
-		// 		bindGroupLayouts: 
-		// 	})
-		// }
+		this.#pipelines.set("shadow-map", await getShadowMapPipelineRegistration(this.#device));
+		this.#pipelines.set("background", await getBackgroundPipelineRegistration(this.#device));
+		//this.#pipelines.set("irridiance", await getIrridiancePipelineRegistration(this.#device));
 	}
 	updateCanvasSize() {
 		this.initDepthTexture();
@@ -250,109 +220,6 @@ export class GpuEngine {
 			this.render(timestamp);
 			this.renderLoop();
 		});
-	}
-
-	setShadowMapBindGroups(passEncoder, bindGroupLayouts, light, shadowMap, mesh) {
-		const shadowMapAspectRatio = shadowMap.width / shadowMap.height;
-
-		const viewMatrix = getLightViewMatrix(light.direction);
-		const projectionMatrix = getLightProjectionMatrix(shadowMapAspectRatio);
-
-		const scene = {
-			viewMatrix,
-			projectionMatrix,
-			modelMatrix: getTranspose(mesh.modelMatrix, [4, 4]), //change to col major?
-			worldMatrix: getTranspose(mesh.worldMatrix, [4, 4]),
-			normalMatrix: getTranspose(
-				getInverse(
-					trimMatrix(
-						multiplyMatrix(mesh.worldMatrix, [4, 4], mesh.modelMatrix, [4, 4]),
-						[4, 4],
-						[3, 3]
-					),
-					[3, 3]
-				),
-				[3, 3])
-		};
-
-		const sceneData = pack(scene, [
-			["viewMatrix", "mat4x4f32"],
-			["projectionMatrix", "mat4x4f32"],
-			["modelMatrix", "mat4x4f32"],
-			["worldMatrix", "mat4x4f32"],
-			["normalMatrix", "mat3x3f32"]
-		]);
-
-		const sceneBuffer = this.#device.createBuffer({
-			size: sceneData.byteLength,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-			label: "shadow-map-scene-buffer"
-		});
-
-		this.#device.queue.writeBuffer(sceneBuffer, 0, sceneData);
-
-		const sceneBindGroup = this.#device.createBindGroup({
-			label: "shadow-map-scene-bind-group",
-			layout: bindGroupLayouts.get("scene"),
-			entries: [
-				{
-					binding: 0,
-					resource: {
-						buffer: sceneBuffer,
-						offset: 0,
-						size: sceneData.byteLength
-					}
-				}
-			]
-		});
-
-		passEncoder.setBindGroup(0, sceneBindGroup);
-	}
-	setBackgroundBindGroups(passEncoder, bindGroupLayouts, camera) {
-		this.setBackgroundSceneBindGroup(passEncoder, bindGroupLayouts, camera);
-		this.setBackgroundTextureBindGroup(passEncoder, bindGroupLayouts);
-	}
-	setBackgroundSceneBindGroup(passEncoder, bindGroupLayouts, camera) {
-		const viewRotationOnly = camera.viewMatrix.slice();
-		viewRotationOnly[12] = 0;
-		viewRotationOnly[13] = 0;
-		viewRotationOnly[14] = 0;
-
-		const inverseViewMatrix = getInverse(viewRotationOnly, [4, 4])
-		const sceneBuffer = this.#device.createBuffer({
-			size: inverseViewMatrix.byteLength,
-			usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-			label: "background-scene-buffer"
-		});
-		this.#device.queue.writeBuffer(sceneBuffer, 0, inverseViewMatrix);
-
-		const sceneBindGroup = this.#device.createBindGroup({
-			label: "background-scene-bind-group",
-			layout: bindGroupLayouts.get("scene"),
-			entries: [
-				{
-					binding: 0,
-					resource: {
-						buffer: sceneBuffer,
-						offset: 0,
-						size: inverseViewMatrix.byteLength
-					}
-				}
-			]
-		});
-
-		passEncoder.setBindGroup(0, sceneBindGroup);
-	}
-	setBackgroundTextureBindGroup(passEncoder, bindGroupLayouts) {
-		if(!this.#background) throw new Error("Tried to set a background when none defined.");
-		const textureBindGroup = this.#device.createBindGroup({
-			layout: bindGroupLayouts.get("materials"),
-			entries: [
-				{ binding: 0, resource: this.#samplers.get(this.#background.sampler) },
-				{ binding: 1, resource: this.#textures.get(this.#background.environmentMap).createView({ dimension: "cube", label: "background-cube-view" }) },
-			]
-		});
-		passEncoder.setBindGroup(1, textureBindGroup);
 	}
 	render(_timestamp) {
 		this.renderShadowMaps();
@@ -390,7 +257,13 @@ export class GpuEngine {
 					const shadowMap = this.#shadowMaps.get(key);
 					const meshContainer = this.#meshContainers.get(meshOrGroup);
 
-					shadowMapPipelineContainer.bindMethod(passEncoder, shadowMapPipelineContainer.bindGroupLayouts, light, shadowMap, meshOrGroup);
+					shadowMapPipelineContainer.bindMethod(this.#device, {
+						passEncoder,
+						bindGroupLayouts: shadowMapPipelineContainer.bindGroupLayouts, 
+						light, 
+						shadowMap, 
+						mesh: meshOrGroup
+					});
 					passEncoder.setVertexBuffer(0, meshContainer.vertexBuffer);
 					passEncoder.setIndexBuffer(meshContainer.indexBuffer, "uint16");
 					passEncoder.drawIndexed(meshContainer.mesh.indices.length);
@@ -445,23 +318,6 @@ export class GpuEngine {
 				} else if(meshOrGroup instanceof Mesh) {
 					const meshContainer = this.#meshContainers.get(meshOrGroup);
 
-
-/**
- * @typedef {{
- *  passEncoder: GPURenderPassEncoder
- *  bindGroupLayouts: Map<string, GPUBindGroupLayout>
- *  camera: Camera,
- *  mesh: Mesh,
- *  lights: Map<string, Light>,
- *  materials: Map<string, Material>,
- *  samplers: Map<string, GPUSampler>,
- *  shadowMaps: Map<string, GPUTexture>,
- *  textures: Map<string, GPUTexture>,
- * }} BindGroupInfo
- * @param {GPUDevice} device
- * @param {BindGroupInfo} info
- */
-
 					pipelineContainer.bindMethod(this.#device, { passEncoder, bindGroupLayouts: pipelineContainer.bindGroupLayouts, camera, mesh: meshContainer.mesh, lights: this.#lights, shadowMaps: this.#shadowMaps, textures: this.#textures, samplers: this.#samplers, materials: this.#materials });
 					passEncoder.setVertexBuffer(0, meshContainer.vertexBuffer);
 					passEncoder.setIndexBuffer(meshContainer.indexBuffer, "uint16");
@@ -495,7 +351,14 @@ export class GpuEngine {
 				
 			const meshContainer = this.#meshContainers.get(this.#background.mesh);
 
-			pipelineContainer.bindMethod(passEncoder, pipelineContainer.bindGroupLayouts, camera, meshContainer.mesh, this.#lights, this.#shadowMaps);
+			pipelineContainer.bindMethod(this.#device, { 
+				passEncoder, 
+				bindGroupLayouts: pipelineContainer.bindGroupLayouts, 
+				camera,
+				samplers: this.#samplers,
+				textures: this.#textures,
+				background: this.#background
+			});
 			passEncoder.setVertexBuffer(0, meshContainer.vertexBuffer);
 			passEncoder.setIndexBuffer(meshContainer.indexBuffer, "uint16");
 			passEncoder.drawIndexed(meshContainer.mesh.indices.length);

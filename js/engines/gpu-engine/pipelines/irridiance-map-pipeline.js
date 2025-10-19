@@ -135,3 +135,18 @@ export async function getIrridiancePipeline(device) {
     };
     return device.createRenderPipeline(pipelineDescriptor);
 }
+
+export async function getIrridiancePipelineRegistration(device) {
+    const pipeline = await getMainPipeline(device);
+    const bindGroupLayouts = new Map([
+        ["scene", pipeline.getBindGroupLayout(0)],
+        ["materials", pipeline.getBindGroupLayout(1)],
+        ["lights", pipeline.getBindGroupLayout(2)],
+    ]);
+    
+    return {
+        pipeline,
+        bindGroupLayouts,
+        bindMethod: setMainBindGroups
+    };
+}
