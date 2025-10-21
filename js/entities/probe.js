@@ -4,6 +4,7 @@ export class Probe {
     #position;
     #outputName;
     #samples;
+    #resolution;
 
     constructor(probe){
         this.name = probe.name;
@@ -11,6 +12,7 @@ export class Probe {
         this.position = probe.position;
         this.outputName = probe.outputName;
         this.samples = probe.samples;
+        this.resolution = probe.resolution ?? 32;
     }
 
     set name(val){
@@ -50,5 +52,12 @@ export class Probe {
     }
     get samples(){
         return this.#samples;
+    }
+
+    set resolution(val){
+        this.#resolution = val;
+    }
+    get resolution(){
+        return this.#resolution;
     }
 }

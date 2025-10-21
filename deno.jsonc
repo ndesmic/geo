@@ -31,7 +31,7 @@
     }
   },
   "fmt": {
-    "useTabs": true,
+    "useTabs": true
   },
   "compilerOptions": {
     "noImplicitAny": false,

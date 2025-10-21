@@ -7,6 +7,7 @@ import { loadImage } from "../utilities/image-utils.js";
 import { fetchObjMesh } from "./data-utils.js";
 import { surfaceGrid, quad, cube } from "./mesh-generator.js";
 import { Probe } from "../entities/probe.js";
+import { DEFAULT_CAMERA } from "../engines/gpu-engine/constants.js";
 
 export function parseFloatVector(text, length = 4, defaultValue = null) {
 	return text?.trim()
@@ -84,7 +85,7 @@ function updateMeshAttributes(meshEl, mesh) {
 
 function parseCamera(cameraEl, options = {}) {
 	return new Camera({
-		name: cameraEl.getAttribute("name"),
+		name: cameraEl.getAttribute("name") ?? DEFAULT_CAMERA,
 		position: parseFloatVector(cameraEl.getAttribute("position"), 3),
 		screenHeight: cameraEl.getAttribute("height") ?? options.defaultHeight,
 		screenWidth: cameraEl.getAttribute("width") ?? options.defaultWidth,
@@ -167,13 +168,15 @@ function parseProbe(probeEl){
 	const outputName = probeEl.getAttribute("outputName");
 	const samples = parseInt(probeEl.getAttribute("samples"), 10);
 	const position = parseFloatVector(probeEl.getAttribute("position"), 3);
+	const resolution = parseIntOrDefault(probeEl.getAttribute("resolution"), 32);
 
 	const probe = new Probe({
 		name,
 		type,
 		outputName,
 		position,
-		samples
+		samples,
+		resolution
 	});
 
 	return probe;

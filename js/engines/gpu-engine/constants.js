@@ -5,3 +5,5 @@ export const PLACEHOLDER_CUBEMAP = Symbol("placeholder-cubemap");
 export const DEFAULT_SAMPLER = Symbol("default-sampler");
 export const DEFAULT_NEAREST_SAMPLER = Symbol("default-nearest-sampler");
 export const DEFAULT_SHADOW_SAMPLER = Symbol("default-shadow-sampler");
+export const BACKGROUND_MESH = Symbol("background-mesh");
+export const DEFAULT_CAMERA = "DEFAULT"

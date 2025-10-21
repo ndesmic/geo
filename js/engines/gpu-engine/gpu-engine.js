@@ -1,9 +1,15 @@
 //@ts-check
+
+/**
+ * @typedef {import("../../entities/pipeline.d.ts").IPipeline} IPipeline
+ * @typedef {import("../../entities/pipeline.d.ts").RenderInfo} RenderInfo
+ * @typedef {import("../../entities/background.d.ts").IBackground} IBackground
+ */
 import { uploadMesh, uploadTexture, createColorTexture } from "../../utilities/wgpu-utils.js";
-import { getBackgroundPipelineRegistration } from "./pipelines/background-pipeline.js";
-import { getShadowMapPipelineRegistration } from "./pipelines/shadow-map-pipeline.js";
-import { getIrridiancePipelineRegistration } from "./pipelines/irridiance-map-pipeline.js";
-import { getMainPipelineRegistration } from "./pipelines/main-pipeline.js";
+import { BackgroundPipeline } from "./pipelines/background-pipeline.js";
+import { ShadowMapPipeline } from "./pipelines/shadow-map-pipeline.js";
+import { IrridiancePipeline } from "./pipelines/irridiance-map-pipeline.js";
+import { MainPipeline } from "./pipelines/main-pipeline.js";
 import { setupExtractDepthBuffer } from "../../utilities/debug-utils.js";
 import { Group } from "../../entities/group.js";
 import { Mesh } from "../../entities/mesh.js";
@@ -33,6 +39,7 @@ export class GpuEngine {
 	#onRender;
 	#meshContainers = new Map();
 	#sceneRoot = null;
+	/** @type {Map<string | symbol, IPipeline>} */
 	#pipelines = new Map();
 	#cameras = new Map();
 	#lights = new Map();
@@ -41,11 +48,10 @@ export class GpuEngine {
 	#materials = new Map();
 	#samplers = new Map();
 	#probes = new Map();
-
 	/**
-	 * @type {{ mesh: Mesh, environmentMap: string, sampler: string | Symbol  } | null}
+	 * @type {IBackground | undefined}
 	 */
-	#background = null;
+	#background = undefined;
 
 	constructor(options) {
 		this.#canvas = options.canvas;
@@ -169,6 +175,11 @@ export class GpuEngine {
 	initializeProbe(probe, defaultName){
 		const key = probe.name ?? defaultName;
 		this.#probes.set(key, probe);
+		this.#textures.set(`${key}-cubemap`, this.#device.createTexture({
+			size: [probe.resolution, probe.resolution, 6],
+			format: "rgba32float",
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+		}));
 	}
 	initializeGroup(group, key) {
 		for (let i = 0; i < group.children.length; i++) {
@@ -196,16 +207,43 @@ export class GpuEngine {
 		this.#sceneRoot = group;
 	}
 	async initializePipelines() {
-		this.#pipelines.set("main", await getMainPipelineRegistration(this.#device));
-		this.#pipelines.set("shadow-map", await getShadowMapPipelineRegistration(this.#device));
-		this.#pipelines.set("background", await getBackgroundPipelineRegistration(this.#device));
-		//this.#pipelines.set("irridiance", await getIrridiancePipelineRegistration(this.#device));
+		const mainPipeline = new MainPipeline();
+		await mainPipeline.createPipeline(this.#device);
+		this.#pipelines.set("main", mainPipeline);
+
+		const shadowMapPipeline = new ShadowMapPipeline();
+		await shadowMapPipeline.createPipeline(this.#device);
+		this.#pipelines.set("shadow-map", shadowMapPipeline);
+
+		const backgroundPipeline = new BackgroundPipeline();
+		await backgroundPipeline.createPipeline(this.#device);
+		this.#pipelines.set("background", backgroundPipeline);
+
+		const irridiancePipeline = new IrridiancePipeline();
+		await irridiancePipeline.createPipeline(this.#device);
+		this.#pipelines.set("irridiance", irridiancePipeline);
 	}
 	updateCanvasSize() {
 		this.initDepthTexture();
 	}
 	async preprocess(){
-		
+		/** @type {RenderInfo} */
+		const renderInfo = {
+			meshContainers: this.#meshContainers,
+			lights: this.#lights,
+			shadowMaps: this.#shadowMaps,
+			textures: this.#textures,
+			samplers: this.#samplers,
+			materials: this.#materials,
+			probes: this.#probes,
+			cameras: this.#cameras,
+			background: this.#background
+		};
+
+		const colorView = this.#context.getCurrentTexture().createView({ label: "canvas-view" });
+		const depthView = this.#textures.get(DEPTH_TEXTURE).createView({ label: "depth-view" });
+
+		this.#pipelines.get("irridiance")?.render(this.#device, this.#sceneRoot, { colorView, depthView }, renderInfo);
 	}
 	start() {
 		this.#isRunning = true;
@@ -222,151 +260,27 @@ export class GpuEngine {
 		});
 	}
 	render(_timestamp) {
-		this.renderShadowMaps();
-		//this.renderDepthBuffer?.(this.#shadowMaps.get("light1").createView());
-		this.renderScene();
+		/** @type {RenderInfo} */
+		const renderInfo = {
+			meshContainers: this.#meshContainers,
+			lights: this.#lights,
+			shadowMaps: this.#shadowMaps,
+			textures: this.#textures,
+			samplers: this.#samplers,
+			materials: this.#materials,
+			probes: this.#probes,
+			cameras: this.#cameras,
+			background: this.#background
+		};
+
+		const colorView = this.#context.getCurrentTexture().createView({ label: "canvas-view" });
+		const depthView = this.#textures.get(DEPTH_TEXTURE).createView({ label: "depth-view" });
+
+		this.#pipelines.get("shadow-map")?.render(this.#device, this.#sceneRoot, null, renderInfo);
+		this.#pipelines.get("main")?.render(this.#device, this.#sceneRoot, { colorView, depthView }, renderInfo);
+		this.#pipelines.get("background")?.render(this.#device, this.#background?.mesh, { colorView, depthView }, renderInfo);
+
 		this.#onRender?.();
-	}
-
-	renderShadowMaps() {
-		const commandEncoder = this.#device.createCommandEncoder({
-			label: "shadow-map-command-encoder"
-		});
-		const shadowMapPipelineContainer = this.#pipelines.get("shadow-map");
-
-		for (const [key, light] of this.#lights) {
-			let isFirstPass = true;
-			const passEncoder = commandEncoder.beginRenderPass({
-				label: `shadow-map-render-pass`,
-				colorAttachments: [],
-				depthStencilAttachment: {
-					view: this.#shadowMaps.get(key).createView(),
-					depthClearValue: 1.0,
-					depthStoreOp: "store",
-					depthLoadOp: isFirstPass ? "clear" : "load",
-				}
-			});
-			passEncoder.setPipeline(shadowMapPipelineContainer.pipeline);
-
-			const renderRecursive = (meshOrGroup) => {
-				if (meshOrGroup instanceof Group) {
-					for (const child of meshOrGroup.children) {
-						renderRecursive(child)
-					}
-				} else if(meshOrGroup instanceof Mesh){
-					const shadowMap = this.#shadowMaps.get(key);
-					const meshContainer = this.#meshContainers.get(meshOrGroup);
-
-					shadowMapPipelineContainer.bindMethod(this.#device, {
-						passEncoder,
-						bindGroupLayouts: shadowMapPipelineContainer.bindGroupLayouts, 
-						light, 
-						shadowMap, 
-						mesh: meshOrGroup
-					});
-					passEncoder.setVertexBuffer(0, meshContainer.vertexBuffer);
-					passEncoder.setIndexBuffer(meshContainer.indexBuffer, "uint16");
-					passEncoder.drawIndexed(meshContainer.mesh.indices.length);
-				}
-			}
-
-			renderRecursive(this.#sceneRoot);
-
-			passEncoder.end();
-			isFirstPass = false;
-		}
-
-		this.#device.queue.submit([commandEncoder.finish()]);
-	}
-	renderScene() {
-		const commandEncoder = this.#device.createCommandEncoder({
-			label: "main-command-encoder"
-		});
-
-		const camera = this.#cameras.get("main");
-
-		const depthView = this.#textures.get(DEPTH_TEXTURE).createView({ label: "depth-texture-view"});
-		const colorView = this.#context.getCurrentTexture().createView({ label: "color-texture-view"});
-
-		{
-			const passEncoder = commandEncoder.beginRenderPass({
-				label: `main-render-pass`,
-				colorAttachments: [
-					{
-						storeOp: "store",
-						loadOp: "clear",
-						clearValue: { r: 0.1, g: 0.3, b: 0.8, a: 1.0 },
-						view: colorView
-					}
-				],
-				depthStencilAttachment: {
-					view: depthView,
-					depthClearValue: 1.0,
-					depthStoreOp: "store",
-					depthLoadOp: "clear"
-				}
-			});
-
-			const pipelineContainer = this.#pipelines.get("main");
-			passEncoder.setPipeline(pipelineContainer.pipeline);
-
-			const renderRecursive = (meshOrGroup) => {
-				if (meshOrGroup instanceof Group) {
-					for (const child of meshOrGroup.children) {
-						renderRecursive(child)
-					}
-				} else if(meshOrGroup instanceof Mesh) {
-					const meshContainer = this.#meshContainers.get(meshOrGroup);
-
-					pipelineContainer.bindMethod(this.#device, { passEncoder, bindGroupLayouts: pipelineContainer.bindGroupLayouts, camera, mesh: meshContainer.mesh, lights: this.#lights, shadowMaps: this.#shadowMaps, textures: this.#textures, samplers: this.#samplers, materials: this.#materials });
-					passEncoder.setVertexBuffer(0, meshContainer.vertexBuffer);
-					passEncoder.setIndexBuffer(meshContainer.indexBuffer, "uint16");
-					passEncoder.drawIndexed(meshContainer.mesh.indices.length);
-				}
-			}
-
-			renderRecursive(this.#sceneRoot);
-
-			passEncoder.end();
-		}
-		if(this.#background){
-			const passEncoder = commandEncoder.beginRenderPass({
-				label: `background-render-pass`,
-				colorAttachments: [
-					{
-						storeOp: "store",
-						loadOp: "load",
-						view: colorView
-					}
-				],
-				depthStencilAttachment: {
-					view: depthView,
-					depthStoreOp: "store",
-					depthLoadOp: "load"
-				}
-			});
-
-			const pipelineContainer = this.#pipelines.get("background");
-			passEncoder.setPipeline(pipelineContainer.pipeline);
-				
-			const meshContainer = this.#meshContainers.get(this.#background.mesh);
-
-			pipelineContainer.bindMethod(this.#device, { 
-				passEncoder, 
-				bindGroupLayouts: pipelineContainer.bindGroupLayouts, 
-				camera,
-				samplers: this.#samplers,
-				textures: this.#textures,
-				background: this.#background
-			});
-			passEncoder.setVertexBuffer(0, meshContainer.vertexBuffer);
-			passEncoder.setIndexBuffer(meshContainer.indexBuffer, "uint16");
-			passEncoder.drawIndexed(meshContainer.mesh.indices.length);
-
-			passEncoder.end();
-		}
-
-		this.#device.queue.submit([commandEncoder.finish()]);
 	}
 
 	get cameras() {

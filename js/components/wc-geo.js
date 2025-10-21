@@ -3,6 +3,7 @@ import { DEGREES_PER_RADIAN } from "../utilities/math-helpers.js";
 import { downloadBlob } from "../utilities/data-utils.js";
 
 import { parseScene } from "../utilities/geo-markup-parser.js";
+import { DEFAULT_CAMERA } from "../engines/gpu-engine/constants.js";
 
 export class WcGeo extends HTMLElement {
 	static observedAttributes = ["height", "width"];
@@ -61,6 +62,7 @@ export class WcGeo extends HTMLElement {
 		await this.engine.initialize({
 			scene
 		});
+		//await this.engine.preprocess();
 		this.engine.start();
 		this.#engineReady = true;
 	}
@@ -77,7 +79,7 @@ export class WcGeo extends HTMLElement {
 	}
 	onKeyDown(e) {
 		if (!this.#engineReady) return;
-		const camera = this.engine.cameras.get("main");
+		const camera = this.engine.cameras.get(DEFAULT_CAMERA);
 		switch (e.code) {
 			case "KeyA": {
 				camera.panBy({ x: 0.1 });
@@ -137,7 +139,7 @@ export class WcGeo extends HTMLElement {
 	onPointerDown(e) {
 		if (!this.#engineReady) return;
 		this.#initialPointer = [e.offsetX, e.offsetY];
-		this.#initialCameraPosition = this.engine.cameras.get("main").position;
+		this.#initialCameraPosition = this.engine.cameras.get(DEFAULT_CAMERA).position;
 		this.dom.canvas.setPointerCapture(e.pointerId);
 		this.dom.canvas.addEventListener("pointermove", this.onPointerMove);
 		this.dom.canvas.addEventListener("pointerup", this.onPointerUp);
@@ -152,7 +154,7 @@ export class WcGeo extends HTMLElement {
 		const xRads = pointerDelta[0] * radsPerWidth;
 		const yRads = pointerDelta[1] * radsPerWidth * (this.#height / this.#width);
 
-		const camera = this.engine.cameras.get("main");
+		const camera = this.engine.cameras.get(DEFAULT_CAMERA);
 		camera.position = this.#initialCameraPosition;
 		camera.orbitBy({ long: xRads, lat: yRads }, [0, 0, 0]);
 		camera.lookAt([0, 0, 0]);
@@ -166,7 +168,7 @@ export class WcGeo extends HTMLElement {
 		if (!this.#engineReady) return;
 		e.preventDefault();
 		const delta = e.deltaY / 1000;
-		this.engine.cameras.get("main").orbitBy({ radius: delta }, [0,0,0]);
+		this.engine.cameras.get(DEFAULT_CAMERA).orbitBy({ radius: delta }, [0,0,0]);
 	}
 	onRKeyPressed(e) {
 		if (!e.shiftKey) return; //record function is shift+R
@@ -196,7 +198,7 @@ export class WcGeo extends HTMLElement {
 		}
 	}
 	onSPressed(e) {
-		this.engine.cameras.get("main").panBy({ z: -0.1 });
+		this.engine.cameras.get(DEFAULT_CAMERA).panBy({ z: -0.1 });
 	}
 	onEscPressed(e) {
 		if (this.engine.isRunning) {
