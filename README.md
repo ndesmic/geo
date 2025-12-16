@@ -10,7 +10,8 @@ Any web server can be used to serve the code however Deno is used for tasks and 
 
 #### Testing
 
-`deno test`
+Unit tests: `deno test`
+Visual tests: `deno task test:visual`
 
 ### Features
 

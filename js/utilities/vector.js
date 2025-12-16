@@ -1,3 +1,10 @@
+//@ts-check
+
+/**
+ * 
+ * @param {number} theta amount in radians around X-axis
+ * @returns 
+ */
 export function getRotationXMatrix(theta) {
 	return new Float32Array([
 		1, 0, 0, 0,
@@ -7,6 +14,11 @@ export function getRotationXMatrix(theta) {
 	]);
 }
 
+/**
+ * 
+ * @param {number} theta amount in radians around Y-axis
+ * @returns 
+ */
 export function getRotationYMatrix(theta) {
 	return new Float32Array([
 		Math.cos(theta), 0, -Math.sin(theta), 0,
@@ -18,7 +30,7 @@ export function getRotationYMatrix(theta) {
 
 /**
  * 
- * @param {number} theta amount in radians, turns counter-clockwise in XY plane/around Z-axis
+ * @param {number} theta amount in radians around Z-axis
  * @returns 
  */
 export function getRotationZMatrix(theta) {
@@ -71,8 +83,8 @@ export function getEmptyMatrix(shape){
 
 /**
  * 
- * @param {Float32Array} vector 
- * @param {Float32Array} matrix
+ * @param {number[] | Float32Array} vector 
+ * @param {number[] | Float32Array} matrix
  * @param {number} size
  * @returns 
  */
@@ -99,8 +111,8 @@ export function getVectorMagnitude(vec) {
 
 /**
  * 
- * @param {number[]} a 
- * @param {number[]} b 
+ * @param {number[] | Float32Array} a 
+ * @param {number[] | Float32Array} b 
  * @returns 
  */
 export function addVector(a, b) {
@@ -109,8 +121,8 @@ export function addVector(a, b) {
 
 /**
  * 
- * @param {number[]} a 
- * @param {number[]} b 
+ * @param {number[] | Float32Array} a 
+ * @param {number[] | Float32Array} b 
  * @returns 
  */
 export function subtractVector(a, b) {
@@ -119,7 +131,7 @@ export function subtractVector(a, b) {
 
 /**
  * 
- * @param {number[]} vec 
+ * @param {number[] | Float32Array} vec 
  * @param {number} s 
  * @returns 
  */
@@ -129,7 +141,7 @@ export function scaleVector(vec, s) {
 
 /**
  * 
- * @param {number[]} vec 
+ * @param {number[] | Float32Array} vec 
  * @param {number} s 
  * @returns 
  */
@@ -159,8 +171,8 @@ export function crossVector(a, b, isHomogeneous = false) {
 
 /**
  * Gets dot product of 2 vectors, does not check if vectors are same length
- * @param {Float32Array} a 
- * @param {Float32Array} b 
+ * @param {number[] | Float32Array} a 
+ * @param {number[] | Float32Array} b 
  * @returns
  */
 export function dotVector(a, b) {
@@ -247,6 +259,11 @@ export function getPolygonCentroid2d(points) {
 	return [cx, cy];
 }
 
+/**
+ * 
+ * @param {number[][]} points 
+ * @returns 
+ */
 export function getPolygonCentroid3d(points) {
 	const n = triangleNormal(points[0], points[1], points[2]);
 	const u = normalizeVector(subtractVector(points[1], points[2]));
@@ -267,7 +284,7 @@ export function getPolygonCentroid3d(points) {
 
 /**
  * Gets a row vector for a matrix
- * @param {Float32Array} matrix 
+ * @param {number[] | Float32Array} matrix 
  * @param {[number, number]} shape 
  * @param {number} row 
  * @returns 
@@ -282,7 +299,7 @@ export function getRow(matrix, shape, row) {
 
 /**
  * Gets a column vector from a matrix
- * @param {Float32Array} matrix 
+ * @param {number[] | Float32Array} matrix 
  * @param {[number, number]} shape 
  * @param {number} col 
  * @returns 
@@ -298,9 +315,9 @@ export function getColumn(matrix, shape, col) {
 
 /**
  * Multiplies 2 matrices. Sides must match [A,B] x [B,A], no validation done
- * @param {Float32Array} valuesA 
+ * @param {number[] | Float32Array} valuesA 
  * @param {[number,number]} shapeA 
- * @param {Float32Array} valuesB 
+ * @param {number[] | Float32Array} valuesB 
  * @param {[number,number]} shapeB 
  * @returns 
  */
@@ -352,15 +369,15 @@ export function getPointAtMatrix(position, target, up) {
 
 /**
  * Creates the matrix to convert world space coordinates into camera space looking a particular direction
- * @param {Float32Array} position position of camera, homogeneous (4-value)
- * @param {Float32Array} direction direction of camera, homogeneous (4-value)
- * @param {Float32Array?} up direction of up, homogeneous (4-value)
+ * @param {number[] | Float32Array} position position of camera, homogeneous (4-value)
+ * @param {number[] | Float32Array} direction direction of camera, homogeneous (4-value)
+ * @param {(number[] | Float32Array)?} up direction of up, homogeneous (4-value)
  * @returns 
  */
 export function getWorldToCameraMatrixFromDirection(position, direction, up = UP) {
 	const forward = normalizeVector(direction);
 
-	if(Math.abs(dotVector(forward, up)) > 0.999){
+	if(Math.abs(dotVector(forward, /**@type {(number[] | Float32Array)}*/(up))) > 0.999){
 		up = Math.abs(forward[1]) < 0.999 ? UP : FORWARD;
 	}
 
@@ -378,15 +395,15 @@ export function getWorldToCameraMatrixFromDirection(position, direction, up = UP
 
 /**
  * Creates the matrix to convert camera space coordinates into world space looking a particular direction
- * @param {Float32Array} position position of camera, homogeneous (4-value)
- * @param {Float32Array} direction direction of camera, homogeneous (4-value)
- * @param {Float32Array?} up direction of up, homogeneous (4-value)
+ * @param {number[] | Float32Array} position position of camera, homogeneous (4-value)
+ * @param {number[] | Float32Array} direction direction of camera, homogeneous (4-value)
+ * @param {(number[] | Float32Array)?} up direction of up, homogeneous (4-value)
  */
 export function getCameraToWorldMatrixFromDirection(position, direction, up = UP) {
 	const forward = normalizeVector(direction);
 
 	// choose a stable up if forward is (nearly) parallel to provided up
-	if (Math.abs(dotVector(forward, up)) > 0.999) {
+	if (Math.abs(dotVector(forward, /**@type {(number[] | Float32Array)}*/(up))) > 0.999) {
 		up = Math.abs(forward[1]) < 0.999 ? UP : FORWARD;
 	}
 
@@ -403,9 +420,9 @@ export function getCameraToWorldMatrixFromDirection(position, direction, up = UP
 
 /**
  * Creates the matrix to convert world space coordinates into camera space looking at a particular target
- * @param {Float32Array} position position of camera, homogeneous (4-value)
- * @param {Float32Array} direction direction of camera, homogeneous (4-value)
- * @param {Float32Array?} up direction of up, homogeneous (4-value)
+ * @param {number[] | Float32Array} position position of camera, homogeneous (4-value)
+ * @param {number[] | Float32Array} target direction of camera, homogeneous (4-value)
+ * @param {(number[] | Float32Array)?} up direction of up, homogeneous (4-value)
  * @returns 
  */
 export function getWorldToCameraMatrixFromTarget(position, target, up = UP){
@@ -575,18 +592,19 @@ export function printMatrix(matrix, shape){
 	return output.join("\n")
 }
 
+//TODO: This likely has issues...
 export function getTangentVectors(trianglePositions, triangleUVs){
 	const deltaUV = [
-		subtractVector(triangleUVs[1], triangleUVs[0]),
-		subtractVector(triangleUVs[2], triangleUVs[0])
+		...subtractVector(triangleUVs[1], triangleUVs[0]),
+		...subtractVector(triangleUVs[2], triangleUVs[0])
 	];
 	const deltaPositions = [
-		subtractVector(trianglePositions[1], trianglePositions[0]),
-		subtractVector(trianglePositions[2], trianglePositions[0])
+		...subtractVector(trianglePositions[1], trianglePositions[0]),
+		...subtractVector(trianglePositions[2], trianglePositions[0])
 	];
 
 	const inverseDeltaUV = getInverse(deltaUV);
-	return multiplyMatrix(inverseDeltaUV, deltaPositions);
+	return multiplyMatrix(inverseDeltaUV, [4,4], deltaPositions, [4,4]);
 }
 
 export function multiplyPointsByMatrix(points, pointSize, matrix){

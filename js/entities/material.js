@@ -1,4 +1,4 @@
-import { DEFAULT_SAMPLER, PLACEHOLDER_TEXTURE } from "../engines/gpu-engine/gpu-engine.js";
+import { DEFAULT_SAMPLER, PLACEHOLDER_TEXTURE } from "../engines/gpu-engine/constants.js";
 
 export class Material {
 	#useRoughnessMap;

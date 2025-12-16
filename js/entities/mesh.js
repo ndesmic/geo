@@ -1,8 +1,17 @@
+// @ts-check
+/** @typedef {import("./transformable.d.ts").ITransformable} ITransformable */
+/** @typedef {import("./ambient-lit.d.ts").IAmbientLit} IAmbientLit */
 import { getTranspose, multiplyMatrixVector, addVector, divideVector, subtractVector, getInverse, trimMatrix, normalizeVector } from "../utilities/vector.js";
 import { chunk } from "../utilities/iterator-utils.js";
+import { AmbientLit } from "./ambient-lit.js";
 import { Transformable } from "./transformable.js";
 
-export class Mesh extends Transformable {
+
+/**
+ * @implements {ITransformable}
+ * @implements {IAmbientLit}
+ */
+export class Mesh {
 	#positions;
 	#positionSize;
 	#colors;
@@ -17,6 +26,9 @@ export class Mesh extends Transformable {
 	#vertexLength;
 	#material;
 
+	#transformable;
+	#ambientLit;
+
 	/** @typedef { "positions" | "colors" | "uvs" | "normals" | "tangents" } AttributeKey */
 	/** @type { readonly [AttributeKey, string][] } */
 	static attributeOrdering = [
@@ -30,7 +42,9 @@ export class Mesh extends Transformable {
 	static empty = new Float32Array(0);
 
 	constructor(mesh) {
-		super();
+		this.#transformable = new Transformable();
+		this.#ambientLit = new AmbientLit();
+
 		this.positions = mesh.positions ?? Mesh.empty;
 		this.colors = mesh.colors ?? Mesh.empty;
 		this.normals = mesh.normals ?? Mesh.empty;
@@ -143,9 +157,27 @@ export class Mesh extends Transformable {
 		this.#material = val;
 		return this;
 	}
+	get modelMatrix(){
+		return this.#transformable.modelMatrix;
+	}
+	get worldMatrix(){
+		return this.#transformable.worldMatrix;
+	}
+	set worldMatrix(val){
+		this.#transformable.worldMatrix = val;
+	}
+	get normalMatrix(){
+		return getTranspose(getInverse(trimMatrix(this.#transformable.modelMatrix, [4,4], [3, 3]), [3,3]), [3,3]);
+	}
+	set ambientLightMap(val){
+		this.#ambientLit.ambientLightMap = val;
+	}
+	get ambientLightMap(){
+		return this.#ambientLit.ambientLightMap;
+	}
 	/**
 	 * 
-	 * @param {(AttributeKey[]} attrNames 
+	 * @param {AttributeKey[]} attrNames 
 	 * @returns 
 	 */
 	useAttributes(attrNames){
@@ -177,7 +209,7 @@ export class Mesh extends Transformable {
 					}
 				}
 			})
-			.map(values => multiplyMatrixVector(modelMatrix, values, this.positionSize + 1)) //need homogenous coordinates for positions
+			.map(values => multiplyMatrixVector(modelMatrix, /** @type {Float32Array} */ (/** @type {unknown} */ (values)), this.positionSize + 1)) //need homogenous coordinates for positions
 			.toArray();
 
 		const normalMatrix = getTranspose(
@@ -186,7 +218,7 @@ export class Mesh extends Transformable {
 			[this.normalSize,this.normalSize]), 
 		[this.normalSize,this.normalSize]);
 		const transformedNormals = chunk(this.normals, this.normalSize)
-			.map(values => multiplyMatrixVector(normalMatrix, values, this.normalSize))
+			.map(values => multiplyMatrixVector(normalMatrix, /** @type {Float32Array} */ (/** @type {unknown} */ (values)), this.normalSize))
 			.map(values => normalizeVector(values))
 			.toArray();
 
@@ -205,9 +237,6 @@ export class Mesh extends Transformable {
 		this.normals = newNormalsBuffer;
 		this.resetTransforms();
 		return this;
-	}
-	get normalMatrix(){
-		return getTranspose(getInverse(trimMatrix(modelMatrix, [3, 3])));
 	}
 	/**
 	 * Normalizes positions to be unit volume and centers
@@ -289,5 +318,22 @@ export class Mesh extends Transformable {
 		this.positions = newPositions;
 		this.positionSize = positionSize;
 		return this;
+	}
+
+	//Transformable
+	translate(params){
+		this.#transformable.translate(params);
+		return this;
+	}
+	scale(params){
+		this.#transformable.scale(params);
+		return this;
+	}
+	rotate(params){
+		this.#transformable.rotate(params);
+		return this;
+	}
+	resetTransforms(){
+		this.#transformable.resetTransforms();
 	}
 }

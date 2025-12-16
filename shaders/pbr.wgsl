@@ -14,6 +14,10 @@ struct Scene {
 	normal_matrix: mat3x3<f32>,
 	camera_position: vec3<f32>
 }
+struct LightData {
+	light_count: u32,
+	lights: array<Light>
+}
 struct Light {
 	light_type: u32,
 	position: vec3<f32>,
@@ -23,9 +27,6 @@ struct Light {
 	view_matrix: mat4x4<f32>,
 	has_shadow: u32,
 	shadow_map_index: i32
-}
-struct LightCount {
-	count: u32
 }
 struct Material {
 	use_specular_map: u32,
@@ -42,14 +43,13 @@ struct Material {
 @group(1) @binding(3) var roughness_sampler: sampler;
 @group(1) @binding(4) var roughness_map: texture_2d<f32>;
 
-@group(2) @binding(0) var<storage, read> lights: array<Light>;
-@group(2) @binding(1) var<uniform> light_count: LightCount;
-@group(2) @binding(2) var shadow_sampler: sampler_comparison;
-@group(2) @binding(3) var shadow_map_0: texture_depth_2d;
-@group(2) @binding(4) var shadow_map_1: texture_depth_2d;
-@group(2) @binding(5) var shadow_map_2: texture_depth_2d;
-@group(2) @binding(6) var shadow_map_3: texture_depth_2d;
-@group(2) @binding(7) var depth_debug_sampler: sampler;
+@group(2) @binding(0) var<storage, read> light_data: LightData;
+@group(2) @binding(1) var shadow_sampler: sampler_comparison;
+@group(2) @binding(2) var shadow_map_0: texture_depth_2d;
+@group(2) @binding(3) var shadow_map_1: texture_depth_2d;
+@group(2) @binding(4) var shadow_map_2: texture_depth_2d;
+@group(2) @binding(5) var shadow_map_3: texture_depth_2d;
+@group(2) @binding(6) var ambient_light_map: texture_cube<f32>;
 
 //schlick
 fn get_fresnel(f0: vec3<f32>, to_view: vec3<f32>, half_vector: vec3<f32>) -> vec3<f32> {
@@ -106,17 +106,17 @@ fn get_bdrf(surface_albedo: vec3<f32>, f0: vec3<f32>, roughness: f32, metalness:
 fn get_shadow(world_position: vec4<f32>, diffuse_factor: f32) -> f32 {
 	var shadow = 1.0;
 	var i = 0;
-	for(var i: u32 = 0; i < light_count.count; i++){
-		if lights[i].has_shadow == 0 {
+	for(var i: u32 = 0; i < light_data.light_count; i++){
+		if light_data.lights[i].has_shadow == 0 {
 			continue;
 		}
-		let shadow_space = lights[i].projection_matrix * lights[i].view_matrix * world_position;
+		let shadow_space = light_data.lights[i].projection_matrix * light_data.lights[i].view_matrix * world_position;
 		let shadow_projection = shadow_space.xyz / shadow_space.w;
 		let shadow_uv = vec2(shadow_projection.x * 0.5 + 0.5, 1.0 - (shadow_projection.y * 0.5 + 0.5));
 		let shadow_depth = shadow_projection.z;
 		let bias = mix(shadow_bias, 0.0, diffuse_factor);
 		//let bias = shadow_bias;
-		switch(lights[i].shadow_map_index){
+		switch(light_data.lights[i].shadow_map_index){
 			case 0: { shadow *= textureSampleCompare(shadow_map_0, shadow_sampler, shadow_uv, shadow_depth); }
 			case 1: { shadow *= textureSampleCompare(shadow_map_1, shadow_sampler, shadow_uv, shadow_depth); }
 			case 2: { shadow *= textureSampleCompare(shadow_map_2, shadow_sampler, shadow_uv, shadow_depth); }
@@ -153,16 +153,16 @@ fn fragment_main(frag_data: VertexOut) -> @location(0) vec4<f32>
 	var normal = round_small_mag_3(normalize(frag_data.normal));
 
 	let i = 0u;
-	for(var i: u32 = 0; i < light_count.count; i++){
-		let light = lights[i];
+	for(var i: u32 = 0; i < light_data.light_count; i++){
+		let light = light_data.lights[i];
 		let light_distance = length(light.position - frag_data.world_position.xyz);
 		var to_light = vec3(0.0);
 
 		switch light.light_type {
-			case 0: {
-				to_light = normalize(light.position - frag_data.world_position.xyz);
+			case 0: { //point
+ 				to_light = normalize(light.position - frag_data.world_position.xyz);
 			}
-			case 1: {
+			case 1: { //directional
 				to_light = normalize(-light.direction);
 			}
 			default: {}
@@ -183,9 +183,12 @@ fn fragment_main(frag_data: VertexOut) -> @location(0) vec4<f32>
 		);
 		let diffuse_factor = max(dot(normal, to_light), 0.0);
 		let shadow = get_shadow(frag_data.world_position, diffuse_factor);
-
 		let shadowed_color = lit_color * shadow;
+
+		let ambient_light = textureSample(ambient_light_map, albedo_sampler, normal);
+
 		total_color += shadowed_color;
+		total_color += ambient_light.rgb;
 	}
 	
 	let tone_mapped_color = total_color / (total_color + vec3(1.0));

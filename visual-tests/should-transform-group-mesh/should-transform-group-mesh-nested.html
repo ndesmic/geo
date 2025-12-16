@@ -15,13 +15,13 @@
 			<geo-material name="red-fabric" roughness-map="red-fabric-roughness" albedo-map="red-fabric"></geo-material>
 			<geo-material name="gold" roughness="0.2" metalness="1" base-reflectance="1.059, 0.773, 0.307" albedo-map="gold"></geo-material>
 
-			<geo-texture name="debug-background" srcs="../../img/debug-cube/red-right.png, ../../img/debug-cube/red-left.png, ../../img/debug-cube/green-top.png, ../../img/debug-cube/green-bottom.png, ../../img/debug-cube/blue-back.png, ../../img/debug-cube/blue-front.png"></geo-texture>
+			<geo-texture name="debug-background" colors="1,0,0,1; 0.25,0,0,1; 0,1,0,1; 0,0.25,0,1; 0,0,1,1; 0,0,0.25,1"></geo-texture>
 			<geo-background 
 				environment-map="debug-background"
 				sampler="nearest"
 			></geo-background>
 
-			<geo-group pipeline="main" rotate="0, 1.5707963267948966, 0">
+			<geo-group rotate="0, 1.5707963267948966, 0">
 				<geo-group rotate="1.5707963267948966, 0, 0">
 					<geo-mesh 
 						name="teapot" 
@@ -45,7 +45,7 @@
 				</geo-group>
 			</geo-group>
 			
-			<geo-light type="directional" color="1, 1, 1, 1" direction="0, -1, 1" casts-shadow></geo-light>
+			<geo-light name="light1" type="directional" color="1, 1, 1, 1" direction="0, -1, 1" casts-shadow></geo-light>
 		</wc-geo>
 		<script src="../../js/components/wc-geo.js" type="module"></script>
 		<script>

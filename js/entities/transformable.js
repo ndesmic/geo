@@ -1,5 +1,7 @@
+/** @typedef {import("./transformable.d.ts").ITransformable} ITransformable */
 import { getTranslationMatrix, getRotationXMatrix, getRotationYMatrix, getRotationZMatrix, getScaleMatrix, multiplyMatrix, getIdentityMatrix } from "../utilities/vector.js";
 
+/** @implements {ITransformable} */
 export class Transformable {
     #transforms = [];
     #worldMatrix = getIdentityMatrix();

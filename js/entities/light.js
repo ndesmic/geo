@@ -5,6 +5,7 @@ import { Transformable } from "./transformable.js";
 
 export class Light extends Transformable {
 	/**@type {LightType} */
+	#name;
 	#type;
 	#position;
 	#direction;
@@ -13,6 +14,7 @@ export class Light extends Transformable {
 
 	constructor(light) {
 		super();
+		this.name = light.name;
 		this.type = light.type ?? "point";
 		this.position = light.position ?? [0, 0, 0, 1];
 		this.direction = light.direction ?? [0, 0, 0, 0];
@@ -46,6 +48,13 @@ export class Light extends Transformable {
 	 */
 	get typeInt() {
 		return Light.getLightInt(this.#type);
+	}
+
+	set name(val){
+		this.#name = val;
+	}
+	get name(){
+		return this.#name;
 	}
 
 	set position(val) {
