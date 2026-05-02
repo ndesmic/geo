@@ -136,8 +136,19 @@ export function pack(data, schema, options = {}){
 		const dataView = new DataView(outBuffer);
 
 		for(let i = 0; i < schema.length; i++){
-			const [name, type] = schema[i];
-			const value = data[name];
+			let type;
+			let name;
+			let value;
+
+			if(Array.isArray(schema[i])){
+				name = schema[i][0];
+				type = schema[i][1];
+				value = data[name];
+			} else {
+				type = schema[i];
+				value = data;
+			}
+		
 			if(value === undefined){
 				throw new Error(`Value lookup for prop '${name}' failed!  Double check the prop name is correct.`);
 			}
@@ -154,6 +165,11 @@ export function pack(data, schema, options = {}){
 				}
 				case "f32": {
 					dataView.setFloat32(totalOffset, value, true);
+					break;
+				}
+				case "vec2u32": {
+					dataView.setUint32(totalOffset, value[0], true);
+					dataView.setUint32(totalOffset + 4, value[1], true);
 					break;
 				}
 				case "vec2f32": {
@@ -264,7 +280,7 @@ export function getAlignments(typesToPack, options = {}){
 		let size;
 		if(Array.isArray(typesToPack[i])){
 			const alignSize = getAlignments(/** @type {GpuType[]} */(typesToPack[i]));
-			align = 16;
+			align = alignSize.maxAlign;
 			size = alignSize.totalSize * (options.arrayCount ?? 1);
 		}else {
 			const alignSize = gpuTypeAlignSize[typesToPack[i]];
@@ -282,6 +298,7 @@ export function getAlignments(typesToPack, options = {}){
 	}
 	return {
 		offsets,
+		maxAlign,
 		totalSize: getPaddedSize(offset, maxAlign, options.minSize)
 	};
 }
@@ -292,21 +309,4 @@ export function roundSmallMagnitudeValues(array, threshold = 1e-7){
 		newArray[i] = Math.abs(newArray[i]) < threshold ? 0 : newArray[i];
 	}
 	return newArray;
-}
-
-
-/*
-struct BadLayout {
-  a: u32;         // 4-byte alignment
-  b: vec4<f32>;   // 16-byte alignment
-} //32 bytes
-
-struct GoodLayout {
-  b: vec4<f32>;   // 16-byte alignment
-  a: u32;         // 4-byte alignment
-} //20 bytes
-
-*/
-export function optimizeSchema(schema){
-
 }

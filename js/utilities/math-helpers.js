@@ -26,7 +26,7 @@ export function cartesianToSpherical([x, y, z]) {
 }
 
 /**
- * 
+ * theta starts at +X axis, right handed around +Y [-pi, pi], phi 0 = +X on XY plane [-pi/2, pi/2]
  * @param {[number, number, number]} latLng
  * @returns 
  */
