@@ -195,10 +195,20 @@ export function reflectVector(vec, normal) {
 	];
 }
 
-export const UP = [0, 1, 0, 0];
-export const FORWARD = [0, 0, 1, 0];
-export const BACKWARD = [0, 0, -1, 0];
-export const RIGHT = [1, 0, 0, 0];
+export const RIGHT = new Float32Array([1, 0, 0, 0]);
+export const LEFT = new Float32Array([-1, 0, 0, 0]);
+export const UP = new Float32Array([0, 1, 0, 0]);
+export const DOWN = new Float32Array([0, -1, 0, 0]);
+export const FORWARD = new Float32Array([0, 0, 1, 0]);
+export const BACKWARD = new Float32Array([0, 0, -1, 0]);
+export const CUBEMAP_DIRECTIONS = [
+    RIGHT,
+    LEFT,
+    UP,
+	DOWN,
+    FORWARD,
+    BACKWARD
+];
 
 // polygons
 export function getVectorIntersectPlane(planePoint, planeNormal, lineStart, lineEnd) {
@@ -578,7 +588,7 @@ export function trimMatrix(matrix, oldShape, newShape){
 export function printMatrix(matrix, shape){
 	const output = new Array(shape[0]);
 	for(let row = 0; row <  shape[0]; row++){
-		let line = new Array(shape[1]);
+		const line = new Array(shape[1]);
 		for(let col = 0; col < shape[1]; col++){
 			line[col] = matrix[row * shape[1] + col];
 			if(line[col] < 1e-8 && line[col] > 0){

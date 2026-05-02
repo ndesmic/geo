@@ -104,6 +104,7 @@ describe("buffer-utils", () => {
 					192,
 					240
 				],
+				maxAlign: 16,
 				totalSize: 256
 			});
 		});
@@ -119,6 +120,7 @@ describe("buffer-utils", () => {
 					0,
 					16
 				],
+				maxAlign: 16,
 				totalSize: 48
 			})
 		});
@@ -275,12 +277,27 @@ describe("buffer-utils", () => {
 
 			expect(view).toEqual(new Float32Array([
 				33,
-				0,0,0,
-				1,2,3,
-				0
+				1,2,3
 			]));
 		});
-		it("should pack struct with array (example 2)", () => {
+	it("should pack struct with array (example 2, primitive)", () => {
+			const data = {
+				val: 33,
+				arr: [1, 2, 3]
+			};
+			const schema = [
+				["val", "f32"],
+				["arr", ["f32"]]
+			];
+			const buffer = pack(data, schema);
+			const view = new Float32Array(buffer);
+
+			expect(view).toEqual(new Float32Array([
+				33,
+				1,2,3
+			]));
+		});
+		it("should pack struct with array (example 3)", () => {
 			const data = {
 				value: 678.12,
 				mat: new Float32Array([9,8,7,6]),
@@ -304,11 +321,10 @@ describe("buffer-utils", () => {
 			const view = new Float32Array(outBuffer);
 			expect(view).toEqual(new Float32Array([
 				678.1199951171875,0,
-				9,8,7,6, 0, 0,
+				9,8,7,6,
 				10, 0, 1, 2, 7, 0,
 				34, 0, 3, 4, 9, 0,
 				77, 0, 5, 6, 11,0,
-				0,0,
 			]));
 		});
 		it("should error if array is not the final element", () => {

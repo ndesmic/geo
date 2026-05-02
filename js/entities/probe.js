@@ -1,4 +1,10 @@
+import { getProjectionMatrix } from "..//utilities/vector.js";
+
 export class Probe {
+    static FIELD_OF_VIEW = 90;
+    static NEAR = 0.01;
+    static FAR = 5;
+
     #name;
     #type;
     #position;
@@ -13,6 +19,16 @@ export class Probe {
         this.outputName = probe.outputName;
         this.samples = probe.samples;
         this.resolution = probe.resolution ?? 32;
+    }
+
+    static getProjectionMatrix(resolution) {
+        return getProjectionMatrix(
+            resolution,
+            resolution,
+            Probe.FIELD_OF_VIEW,
+            Probe.NEAR,
+            Probe.FAR
+        );
     }
 
     set name(val){
@@ -43,6 +59,7 @@ export class Probe {
     set outputName(val){
         this.#outputName = val;
     }
+    /** @type {string} */
     get outputName(){
         return this.#outputName;
     }

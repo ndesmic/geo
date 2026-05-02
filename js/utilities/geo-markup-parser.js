@@ -40,6 +40,11 @@ export function parseListOfFloatVector(text, length, defaultValue){
 }
 
 function updateMeshAttributes(meshEl, mesh) {
+	const name = meshEl.getAttribute("name");
+	if(name){
+		mesh.name = name;
+	}
+
 	const normalize = meshEl.hasAttribute("normalize");
 	if (normalize) {
 		mesh.normalizePositions();
@@ -165,7 +170,7 @@ function parseCube(meshEl){
 function parseProbe(probeEl){
 	const name = probeEl.getAttribute("name");
 	const type = probeEl.getAttribute("type");
-	const outputName = probeEl.getAttribute("outputName");
+	const outputName = probeEl.getAttribute("output-name");
 	const samples = parseInt(probeEl.getAttribute("samples"), 10);
 	const position = parseFloatVector(probeEl.getAttribute("position"), 3);
 	const resolution = parseIntOrDefault(probeEl.getAttribute("resolution"), 32);

@@ -22,15 +22,17 @@ export type RenderInfo = {
     materials: Map<string | symbol, Material>,
     probes: Map<string | symbol, Probe>,
     cameras: Map<string | symbol, Camera>,
-    background?: IBackground
+    primaryCamera: Camera,
+    background?: IBackground,
+    commandEncoder?: GPUCommandEncoder
 }
 
 type AttachmentViews = {
-    colorView: GPUTextureView,
-    depthView: GPUTextureView
+    colorView?: GPUTextureView,
+    depthView?: GPUTextureView
 }
 
 export interface IPipeline {
     createPipeline(device: GPUDevice): Promise<void>
-    render(device: GPUDevice, root: any, attachmentViews: AttachmentViews | null, info: RenderInfo): void
+    render(device: GPUDevice, root: any, attachmentViews: AttachmentViews | null, info: RenderInfo, args?: any): void
 }

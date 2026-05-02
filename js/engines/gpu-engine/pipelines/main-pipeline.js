@@ -64,7 +64,7 @@ export class MainPipeline {
 		}];
 
 		const relativeShaderUrl = import.meta.resolve(
-			"../../../../shaders/pbr.wgsl",
+			"../shaders/pbr.wgsl",
 		);
 		const shaderModule = await uploadShader(device, relativeShaderUrl);
 
@@ -342,7 +342,6 @@ export class MainPipeline {
 	 */
 
 	setMainMaterialBindGroup(device, info) {
-		//TODO: pack the class directly
 		const material = info.materials.get(info.mesh.material);
 		if (!material) {
 			return new Error(`Material ${info.mesh.material} not found!`);
@@ -562,31 +561,29 @@ export class MainPipeline {
 	 *  samplers: Map<string | symbol, GPUSampler>,
 	 *  materials: Map<string | symbol, Material>,
 	 *  cameras: Map<string | symbol, Camera>,
-	 *  probes: Map<string | symbol, Probe>
+	 *  primaryCamera: Camera,
+	 *  probes: Map<string | symbol, Probe>,
+	 *  commandEncoder: GPUCommandEncoder
 	 * }} info
 	 */
 	render(device, root, attachmentViews, info) {
-		const commandEncoder = device.createCommandEncoder({
-			label: "main-command-encoder",
-		});
-
 		const camera = info.cameras.get(DEFAULT_CAMERA);
 		if(!camera){
 			throw new Error(`Default camera did not exist.`);
 		}
 
-		const passEncoder = commandEncoder.beginRenderPass({
+		const passEncoder = info.commandEncoder.beginRenderPass({
 			label: `main-render-pass`,
 			colorAttachments: [
 				{
 					storeOp: "store",
 					loadOp: "clear",
 					clearValue: { r: 0.1, g: 0.3, b: 0.8, a: 1.0 },
-					view: attachmentViews.colorView,
+					view: /** @type {GPUTextureView} */(attachmentViews.colorView),
 				},
 			],
 			depthStencilAttachment: {
-				view: attachmentViews.depthView,
+				view: /** @type {GPUTextureView} */(attachmentViews.depthView),
 				depthClearValue: 1.0,
 				depthStoreOp: "store",
 				depthLoadOp: "clear",
@@ -623,6 +620,5 @@ export class MainPipeline {
 		renderRecursive(root);
 
 		passEncoder.end();
-		device.queue.submit([commandEncoder.finish()]);
 	}
 }

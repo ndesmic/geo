@@ -20,13 +20,15 @@ export class Camera extends Transformable {
 	/**
 	 * 
 	 * @param {{
-	 *   position: ArrayLike,
+	 *   name: string,
+	 *   position: number[] | Float32Array,
+	 *   direction?: number[] | Float32Array,
 	 *   screenWidth: number,
 	 *   screenHeight: number,
-	 *   left: number,
-	 *   right: number,
-	 *   top: number,
-	 *   bottom: number,
+	 *   left?: number,
+	 *   right?: number,
+	 *   top?: number,
+	 *   bottom?: number,
 	 *   near: number,
 	 *   far: number,
 	 *   fieldOfView: number,

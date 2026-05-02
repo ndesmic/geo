@@ -62,7 +62,7 @@ export class WcGeo extends HTMLElement {
 		await this.engine.initialize({
 			scene
 		});
-		//await this.engine.preprocess();
+		await this.engine.preprocess();
 		this.engine.start();
 		this.#engineReady = true;
 	}

@@ -14,7 +14,6 @@
  */
 import { uploadShader } from "../../../utilities/wgpu-utils.js";
 import { getInverse } from "../../../utilities/vector.js";
-import { DEFAULT_CAMERA } from "../constants.js";
 
 /**
  * @implements {IPipeline}
@@ -35,9 +34,13 @@ export class BackgroundPipeline {
 			stepMode: "vertex",
 		}];
 
+		const relativeShaderUrl = import.meta.resolve(
+			"../shaders/background.wgsl",
+		);
+
 		const shaderModule = await uploadShader(
 			device,
-			import.meta.resolve("../../../../shaders/background.wgsl"),
+			relativeShaderUrl
 		);
 
 		const pipelineDescriptor = {
@@ -168,27 +171,26 @@ export class BackgroundPipeline {
 	 *  samplers: Map<string | symbol, GPUSampler>,
 	 *  materials: Map<string | symbol, Material>,
 	 *  cameras: Map<string | symbol, Camera>,
+	 *  primaryCamera: Camera,
 	 *  probes: Map<string | symbol, Probe>,
 	 *  background: IBackground
+	 *  commandEncoder: GPUCommandEncoder
 	 * }} info
 	 */
 	render(device, root, attachmentViews, info) {
 		if (!info.background) return;
-		const commandEncoder = device.createCommandEncoder({
-			label: "background-command-encoder",
-		});
 
-		const passEncoder = commandEncoder.beginRenderPass({
+		const passEncoder = info.commandEncoder.beginRenderPass({
 			label: `background-render-pass`,
 			colorAttachments: [
 				{
 					storeOp: "store",
 					loadOp: "load",
-					view: attachmentViews.colorView,
+					view: /** @type {GPUTextureView} */(attachmentViews.colorView),
 				},
 			],
 			depthStencilAttachment: {
-				view: attachmentViews.depthView,
+				view: /** @type {GPUTextureView} */(attachmentViews.depthView),
 				depthStoreOp: "store",
 				depthLoadOp: "load",
 			},
@@ -200,9 +202,9 @@ export class BackgroundPipeline {
 		if (!meshContainer) {
 			throw new Error(`No mesh was defined for the background`);
 		}
-		const camera = info.cameras.get(DEFAULT_CAMERA);
+		const camera = info.primaryCamera;
 		if (!camera) {
-			throw new Error(`Default camera did not exist.`);
+			throw new Error(`Primary (default) camera did not exist.`);
 		}
 
 		this.setBackgroundBindGroups(device, {
@@ -217,6 +219,5 @@ export class BackgroundPipeline {
 		passEncoder.drawIndexed(meshContainer.mesh.indices.length);
 
 		passEncoder.end();
-		device.queue.submit([commandEncoder.finish()]);
 	}
 }

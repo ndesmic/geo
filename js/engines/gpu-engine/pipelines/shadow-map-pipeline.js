@@ -4,8 +4,8 @@
  * @typedef {import("../../../entities/light.js").Light} Light
  * @typedef {import("../../../entities/material.js").Material} Material
  * @typedef {import("../../../entities/probe.js").Probe} Probe
- * @typedef {import("./irridiance-map-pipeline.js").IPipeline} IPipeline
- * @typedef {import("./irridiance-map-pipeline.js").MeshContainer} MeshContainer
+ * @typedef {import("./cubemap-render-pipeline.js").IPipeline} IPipeline
+ * @typedef {import("./cubemap-render-pipeline.js").MeshContainer} MeshContainer
  * @typedef {import("../../../entities/pipeline.d.ts").AttachmentViews} AttachmentViews
  */
 import { Mesh } from "../../../entities/mesh.js";
@@ -53,9 +53,12 @@ export class ShadowMapPipeline {
 			stepMode: "vertex",
 		}];
 
+		const relativeShaderUrl = import.meta.resolve(
+			"../shaders/shadow-map.wgsl",
+		);
 		const shaderModule = await uploadShader(
 			device,
-			"../../../../shaders/shadow-map.wgsl",
+			relativeShaderUrl
 		);
 
 		this.#bindGroupLayouts.set("scene", device.createBindGroupLayout({
@@ -190,17 +193,15 @@ export class ShadowMapPipeline {
 	 *  samplers: Map<string | symbol, GPUSampler>,
 	 *  materials: Map<string | symbol, Material>,
 	 *  cameras: Map<string | symbol, Camera>,
-	 *  probes: Map<string | symbol, Probe>
+	 *  primaryCamera: Camera,
+	 *  probes: Map<string | symbol, Probe>,
+	 *  commandEncoder: GPUCommandEncoder
 	 * }} info
 	 */
 	render(device, root, attachmentViews, info) {
-		const commandEncoder = device.createCommandEncoder({
-			label: "shadow-map-command-encoder"
-		});
-
 		for (const [key, light] of info.lights) {
 			let isFirstPass = true;
-			const passEncoder = commandEncoder.beginRenderPass({
+			const passEncoder = info.commandEncoder.beginRenderPass({
 				label: `shadow-map-render-pass`,
 				colorAttachments: [],
 				depthStencilAttachment: {
@@ -238,7 +239,5 @@ export class ShadowMapPipeline {
 			passEncoder.end();
 			isFirstPass = false;
 		}
-
-		device.queue.submit([commandEncoder.finish()]);
 	}
 }

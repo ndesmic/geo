@@ -8,9 +8,12 @@
 import { uploadMesh, uploadTexture, createColorTexture } from "../../utilities/wgpu-utils.js";
 import { BackgroundPipeline } from "./pipelines/background-pipeline.js";
 import { ShadowMapPipeline } from "./pipelines/shadow-map-pipeline.js";
-import { IrridiancePipeline } from "./pipelines/irridiance-map-pipeline.js";
+import { CubemapRenderPipeline } from "./pipelines/cubemap-render-pipeline.js";
 import { MainPipeline } from "./pipelines/main-pipeline.js";
 import { setupExtractDepthBuffer } from "../../utilities/debug-utils.js";
+import { DisplayTexturePipeline } from "./pipelines/display-texture-pipeline.js";
+import { IrradiancePipeline } from "./pipelines/irradiance-pipeline.js";
+import { ConvolutionPipeline } from "./pipelines/convolution-pipeline.js";
 import { Group } from "../../entities/group.js";
 import { Mesh } from "../../entities/mesh.js";
 import { Light } from "../../entities/light.js";
@@ -25,7 +28,8 @@ import {
 	DEPTH_TEXTURE,
 	DEFAULT_SAMPLER,
 	DEFAULT_NEAREST_SAMPLER,
-	DEFAULT_SHADOW_SAMPLER
+	DEFAULT_SHADOW_SAMPLER,
+	DEFAULT_CAMERA
 } from "./constants.js";
 
 export class GpuEngine {
@@ -47,6 +51,7 @@ export class GpuEngine {
 	#textures = new Map();
 	#materials = new Map();
 	#samplers = new Map();
+	/** @type {Map<string | symbol, Probe>} */
 	#probes = new Map();
 	/**
 	 * @type {IBackground | undefined}
@@ -178,7 +183,14 @@ export class GpuEngine {
 		this.#textures.set(`${key}-cubemap`, this.#device.createTexture({
 			size: [probe.resolution, probe.resolution, 6],
 			format: "rgba32float",
-			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+			dimension: "2d"
+		}));
+		this.#textures.set(`${key}-cubemap-swap`, this.#device.createTexture({
+			size: [probe.resolution, probe.resolution, 6],
+			format: "rgba32float",
+			usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+			dimension: "2d"
 		}));
 	}
 	initializeGroup(group, key) {
@@ -219,31 +231,86 @@ export class GpuEngine {
 		await backgroundPipeline.createPipeline(this.#device);
 		this.#pipelines.set("background", backgroundPipeline);
 
-		const irridiancePipeline = new IrridiancePipeline();
-		await irridiancePipeline.createPipeline(this.#device);
-		this.#pipelines.set("irridiance", irridiancePipeline);
+		const sceneCubemapPipeline = new CubemapRenderPipeline();
+		await sceneCubemapPipeline.createPipeline(this.#device);
+		this.#pipelines.set("scene-cubemap", sceneCubemapPipeline);
+
+		const irradiancePipeline = new IrradiancePipeline();
+		await irradiancePipeline.createPipeline(this.#device);
+		this.#pipelines.set("irradiance", irradiancePipeline);
+
+		const convolutionPipeline = new ConvolutionPipeline();
+		await convolutionPipeline.createPipeline(this.#device, { sampler: this.#samplers.get(DEFAULT_NEAREST_SAMPLER), textureType: "cubemap" });
+		this.#pipelines.set("convolution", convolutionPipeline);
+
+		const copyTexturePipeline = new DisplayTexturePipeline();
+		//await copyTexturePipeline.createPipeline(this.#device, { sampler: this.#samplers.get(DEFAULT_SAMPLER), textureType: "cubemap" });
+		await copyTexturePipeline.createPipeline(this.#device, { sampler: this.#samplers.get(DEFAULT_SAMPLER), textureType: "cubemap" });
+		this.#pipelines.set("display-texture", copyTexturePipeline);
 	}
 	updateCanvasSize() {
 		this.initDepthTexture();
 	}
 	async preprocess(){
-		/** @type {RenderInfo} */
-		const renderInfo = {
-			meshContainers: this.#meshContainers,
-			lights: this.#lights,
-			shadowMaps: this.#shadowMaps,
-			textures: this.#textures,
-			samplers: this.#samplers,
-			materials: this.#materials,
-			probes: this.#probes,
-			cameras: this.#cameras,
-			background: this.#background
-		};
+		for(const probe of this.#probes.values()){
+			const commandEncoder = this.#device.createCommandEncoder({
+				label: "preprocess-command-encoder",
+			});
 
-		const colorView = this.#context.getCurrentTexture().createView({ label: "canvas-view" });
-		const depthView = this.#textures.get(DEPTH_TEXTURE).createView({ label: "depth-view" });
+			/** @type {RenderInfo} */
+			const renderInfo = {
+				meshContainers: this.#meshContainers,
+				lights: this.#lights,
+				shadowMaps: this.#shadowMaps,
+				textures: this.#textures,
+				samplers: this.#samplers,
+				materials: this.#materials,
+				probes: this.#probes,
+				cameras: this.#cameras,
+				primaryCamera: this.#cameras.get(DEFAULT_CAMERA),
+				background: this.#background,
+				commandEncoder
+			};
 
-		this.#pipelines.get("irridiance")?.render(this.#device, this.#sceneRoot, { colorView, depthView }, renderInfo);
+			const colorView = this.#context.getCurrentTexture().createView({ label: "canvas-view" });
+			const resolution = Math.max(this.#context.canvas.width, this.#context.canvas.height);
+
+			this.#pipelines.get("scene-cubemap")?.render(this.#device, this.#sceneRoot, {}, renderInfo, {
+				outTexture: `${probe.outputName}-irradiance-scene-cubemap`,
+				outResolution: resolution
+			});
+			this.#pipelines.get("irradiance")?.render(this.#device, this.#sceneRoot, {}, renderInfo, { 
+				inTexture: `${probe.outputName}-irradiance-scene-cubemap`, 
+				outTexture: `${probe.outputName}-raw`, 
+				inResolution: resolution,
+				outResolution: probe.resolution,
+				sampleCount: probe.samples
+			});
+			this.#pipelines.get("convolution")?.render(this.#device, null, {}, renderInfo, 
+				{
+					inTexture:  `${probe.outputName}-raw`,
+					outTexture: probe.outputName,
+					inResolution: [probe.resolution, probe.resolution],
+					outResolution: [probe.resolution, probe.resolution],
+					kernel: {
+						shape: [3,3],
+						values: [0.0625, 0.125, 0.0625,
+								 0.125, 0.25, 0.125,
+								 0.0625, 0.125, 0.0625]
+					}
+				}
+			);
+			// this.#pipelines.get("display-texture")?.render(this.#device, null, { colorView }, renderInfo, 
+			// 	this.#textures.get(`${probe.outputName}-raw`).createView({ dimension: "2d-array" })
+			// );
+			// this.#pipelines.get("display-texture")?.render(this.#device, null, { colorView }, renderInfo, 
+			// 	this.#textures.get(probe.outputName).createView({ dimension: "2d-array" })
+			// );
+
+			this.#device.queue.submit([commandEncoder.finish()]);
+			this.#textures.delete(`${probe.outputName}-irradiance-scene-cubemap`); //free up intermediate cubemap
+			this.#textures.delete(`${probe.outputName}-raw`); //free up intermediate irridiance map
+		}
 	}
 	start() {
 		this.#isRunning = true;
@@ -260,6 +327,11 @@ export class GpuEngine {
 		});
 	}
 	render(_timestamp) {
+		const colorView = this.#context.getCurrentTexture().createView({ label: "canvas-view" });
+		const depthView = this.#textures.get(DEPTH_TEXTURE).createView({ label: "depth-view" });
+		const commandEncoder = this.#device.createCommandEncoder({
+			label: "main-command-encoder",
+		});
 		/** @type {RenderInfo} */
 		const renderInfo = {
 			meshContainers: this.#meshContainers,
@@ -270,15 +342,16 @@ export class GpuEngine {
 			materials: this.#materials,
 			probes: this.#probes,
 			cameras: this.#cameras,
-			background: this.#background
+			primaryCamera: this.#cameras.get(DEFAULT_CAMERA),
+			background: this.#background,
+			commandEncoder
 		};
-
-		const colorView = this.#context.getCurrentTexture().createView({ label: "canvas-view" });
-		const depthView = this.#textures.get(DEPTH_TEXTURE).createView({ label: "depth-view" });
 
 		this.#pipelines.get("shadow-map")?.render(this.#device, this.#sceneRoot, null, renderInfo);
 		this.#pipelines.get("main")?.render(this.#device, this.#sceneRoot, { colorView, depthView }, renderInfo);
 		this.#pipelines.get("background")?.render(this.#device, this.#background?.mesh, { colorView, depthView }, renderInfo);
+
+		this.#device.queue.submit([commandEncoder.finish()]);
 
 		this.#onRender?.();
 	}
